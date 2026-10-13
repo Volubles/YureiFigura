@@ -98,8 +98,8 @@ remapJar {
     archiveClassifier.set "fabric-mc"
 }
 
-jar {
-    from("LICENSE") {
+tasks.withType(Jar).configureEach {
+    from(rootProject.file("LICENSE.md")) {
         rename { String.valueOf("$archives_base_name").toUpperCase() + "_${it}"}
     }
 }
