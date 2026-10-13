@@ -119,7 +119,7 @@ components.java {
 publishing {
     publications {
         maven(MavenPublication) {
-            artifactId = "${project.archivesBaseName}-${project.name}"
+            artifactId = "${project.base.archivesName.get()}-${project.name}"
             version = project.version
             artifact(remapJar) {
                 builtBy remapJar
