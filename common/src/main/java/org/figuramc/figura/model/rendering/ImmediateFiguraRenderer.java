@@ -31,6 +31,7 @@ import org.figuramc.figura.utils.ui.UIHelper;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class ImmediateFiguraRenderer extends FiguraRenderer {
 
@@ -186,9 +187,9 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             // push vertices to vertex consumer
             FiguraMod.pushProfiler("draw");
             FiguraMod.pushProfiler("primary");
-            VERTEX_BUFFER.consume(true, bufferSource);
+            consumeVertices(true, bufferSource);
             FiguraMod.popPushProfiler("secondary");
-            VERTEX_BUFFER.consume(false, bufferSource);
+            consumeVertices(false, bufferSource);
             FiguraMod.popProfiler(2);
 
             if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
@@ -204,6 +205,16 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             clean();
 
         return prev - Math.max(remainingComplexity[0], 0);
+    }
+
+    private static void consumeVertices(boolean primary, MultiBufferSource bufferSource) {
+        VERTEX_BUFFER.consume(primary, renderType -> bufferSource.getBuffer(renderType), renderType -> {
+            if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
+                if (renderType == RenderTypes.lines() || renderType == RenderTypes.linesTranslucent() || renderType == FiguraRenderTypes.FiguraRenderType.SOLID) {
+                    bs.endBatch(renderType);
+                }
+            }
+        });
     }
 
     protected PartCustomization setupRootCustomization(double vertOffset) {
@@ -717,20 +728,17 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             list.add(consumer);
         }
 
-        public void consume(boolean primary, MultiBufferSource bufferSource) {
+        public void consume(boolean primary, Function<RenderType, VertexConsumer> bufferProvider, Consumer<RenderType> finishBatch) {
             HashMap<RenderType, List<Consumer<VertexConsumer>>> map = primary ? primaryBuffers : secondaryBuffers;
             for (Map.Entry<RenderType, List<Consumer<VertexConsumer>>> entry : map.entrySet()) {
                 RenderType renderType = entry.getKey();
-                VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
+                VertexConsumer vertexConsumer = bufferProvider.apply(renderType);
                 List<Consumer<VertexConsumer>> consumers = entry.getValue();
-                for (Consumer<VertexConsumer> consumer : consumers)
+                for (Consumer<VertexConsumer> consumer : consumers) {
                     consumer.accept(vertexConsumer);
-
-                if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
-                    if (renderType == RenderTypes.lines() || renderType == RenderTypes.linesTranslucent() || renderType == FiguraRenderTypes.FiguraRenderType.SOLID) {
-                        bs.endBatch(renderType);
-                    }
                 }
+
+                finishBatch.accept(renderType);
             }
             map.clear();
         }
