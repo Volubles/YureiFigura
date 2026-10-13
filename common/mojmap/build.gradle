@@ -48,11 +48,11 @@ publishing {
 			version = project.version
 			artifact(mojmapJar) {
 				builtBy mojmapJar
-				classifier ''
+				classifier = ''
 			}
 			artifact(mojmapSourcesJar) {
 				builtBy mojmapSourcesJar
-				classifier 'sources'
+				classifier = 'sources'
 			}
 		}
 	}
@@ -63,7 +63,7 @@ void setupRepositories(RepositoryHandler repositories) {
 	if (project.hasProperty("mavenUrl")) {
 		repositories.maven {
 			name = "figuraMaven"
-			url project.mavenUrl
+			url = project.mavenUrl
 			credentials(PasswordCredentials)
 			authentication {
 				basic(BasicAuthentication)

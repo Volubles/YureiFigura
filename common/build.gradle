@@ -27,7 +27,7 @@ dependencies {
         exclude group: "net.fabricmc"
     }
 
-    implementation(annotationProcessor("io.github.llamalad7:mixinextras-common:0.3.6"))
+    implementation(annotationProcessor("io.github.llamalad7:mixinextras-common:$mixinextras"))
 
     // We depend on fabric loader here to use the fabric @Environment annotations and get the mixin dependencies
     // Do NOT use other classes from fabric loader
@@ -48,11 +48,11 @@ publishing {
             version = project.version
             artifact(remapJar) {
                 builtBy remapJar
-                classifier ''
+                classifier = ''
             }
             artifact(sourcesJar) {
                 builtBy sourcesJar
-                classifier 'sources'
+                classifier = 'sources'
             }
         }
     }
@@ -63,7 +63,7 @@ void setupRepositories(RepositoryHandler repositories) {
     if (project.hasProperty("mavenUrl")) {
         repositories.maven {
             name = "figuraMaven"
-            url project.mavenUrl
+            url = project.mavenUrl
             credentials(PasswordCredentials)
             authentication {
                 basic(BasicAuthentication)

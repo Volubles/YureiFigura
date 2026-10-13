@@ -1,5 +1,5 @@
 plugins {
-    id "com.gradleup.shadow" version "9.2.2"
+    id "com.gradleup.shadow" version "9.6.1"
 }
 
 architectury {
@@ -28,7 +28,7 @@ dependencies {
     include(implementation("com.github.FiguraMC.luaj:luaj-core:$luaj-figura"))
     include(implementation("com.github.FiguraMC.luaj:luaj-jse:$luaj-figura"))
     include(implementation("com.neovisionaries:nv-websocket-client:$nv_websocket"))
-    include(implementation(annotationProcessor("io.github.llamalad7:mixinextras-fabric:0.3.6")))
+    include(implementation(annotationProcessor("io.github.llamalad7:mixinextras-fabric:$mixinextras")))
 
     if(rootProject.run_on_quilt == "false") {
         modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
@@ -64,8 +64,8 @@ dependencies {
         modRuntimeOnly("software.bernie.geckolib:geckolib-fabric-$geckolib_version")
 
 
-    common(project(path: ":common", configuration: "namedElements")) { transitive false }
-    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
+    common(project(path: ":common", configuration: "namedElements")) { transitive = false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive = false }
 }
 
 
@@ -76,6 +76,7 @@ processResources {
     properties.put("version", project.jarVersion)
     properties.put("java_version", rootProject.java_version)
     properties.put("minecraft_version", rootProject.minecraft_version)
+    properties.put("fabric_loader_version", rootProject.fabric_loader_version)
     properties.put("assets_version", rootProject.assets_version)
 
     properties.forEach((k, v) -> inputs.property(k, v.toString()))
@@ -121,11 +122,11 @@ publishing {
             version = project.version
             artifact(remapJar) {
                 builtBy remapJar
-                classifier ''
+                classifier = ''
             }
             artifact(sourcesJar) {
                 builtBy sourcesJar
-                classifier 'sources'
+                classifier = 'sources'
             }
         }
     }
@@ -136,7 +137,7 @@ void setupRepositories(RepositoryHandler repositories) {
     if (project.hasProperty("mavenUrl")) {
         repositories.maven {
             name = "figuraMaven"
-            url project.mavenUrl
+            url = project.mavenUrl
             credentials(PasswordCredentials)
             authentication {
                 basic(BasicAuthentication)
