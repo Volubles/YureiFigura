@@ -677,7 +677,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
     private static final FiguraVec3 normal = FiguraVec3.of();
     private static final FiguraVec3 uv = FiguraVec3.of(0, 0, 1);
     private void pushToBuffer(int faceCount, VertexData vertexData, PartCustomization customization, FiguraTextureSet textureSet, List<Vertex> vertices) {
-        int vertCount = faceCount * 4;
+        int vertCount = Math.multiplyExact(faceCount, 4);
 
         FiguraVec3 uvFixer = FiguraVec3.of();
         uvFixer.set(textureSet.getWidth(), textureSet.getHeight(), 1); // Dividing by this makes uv 0 to 1
@@ -685,7 +685,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         int overlay = customization.overlay;
         int light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
 
-        VERTEX_BUFFER.getBufferFor(vertexData.renderType, vertexData.primary, vertexConsumer -> {
+        VERTEX_BUFFER.getBufferFor(vertexData.renderType, vertexData.primary, vertCount, vertexConsumer -> {
             for (int i = 0; i < vertCount; i++) {
                 Vertex vertex = vertices.get(i);
 
@@ -719,28 +719,38 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
     }
 
     private static class VertexBuffer {
-        private final HashMap<RenderType, List<Consumer<VertexConsumer>>> primaryBuffers = new LinkedHashMap<>();
-        private final HashMap<RenderType, List<Consumer<VertexConsumer>>> secondaryBuffers = new LinkedHashMap<>();
+        private final HashMap<RenderType, List<QueuedVertices>> primaryBuffers = new LinkedHashMap<>();
+        private final HashMap<RenderType, List<QueuedVertices>> secondaryBuffers = new LinkedHashMap<>();
 
-        public void getBufferFor(RenderType renderType, boolean primary, Consumer<VertexConsumer> consumer) {
-            HashMap<RenderType, List<Consumer<VertexConsumer>>> buffer = primary ? primaryBuffers : secondaryBuffers;
-            List<Consumer<VertexConsumer>> list = buffer.computeIfAbsent(renderType, renderType1 -> new ArrayList<>());
-            list.add(consumer);
+        public void getBufferFor(RenderType renderType, boolean primary, int vertexCount, Consumer<VertexConsumer> consumer) {
+            HashMap<RenderType, List<QueuedVertices>> buffer = primary ? primaryBuffers : secondaryBuffers;
+            List<QueuedVertices> list = buffer.computeIfAbsent(renderType, renderType1 -> new ArrayList<>());
+            list.add(new QueuedVertices(vertexCount, consumer));
         }
 
         public void consume(boolean primary, Function<RenderType, VertexConsumer> bufferProvider, Consumer<RenderType> finishBatch) {
-            HashMap<RenderType, List<Consumer<VertexConsumer>>> map = primary ? primaryBuffers : secondaryBuffers;
-            for (Map.Entry<RenderType, List<Consumer<VertexConsumer>>> entry : map.entrySet()) {
+            HashMap<RenderType, List<QueuedVertices>> map = primary ? primaryBuffers : secondaryBuffers;
+            for (Map.Entry<RenderType, List<QueuedVertices>> entry : map.entrySet()) {
                 RenderType renderType = entry.getKey();
                 VertexConsumer vertexConsumer = bufferProvider.apply(renderType);
-                List<Consumer<VertexConsumer>> consumers = entry.getValue();
-                for (Consumer<VertexConsumer> consumer : consumers) {
-                    consumer.accept(vertexConsumer);
+                List<QueuedVertices> consumers = entry.getValue();
+                int vertexCount = 0;
+                for (QueuedVertices vertices : consumers) {
+                    vertexCount = Math.addExact(vertexCount, vertices.vertexCount());
                 }
+                CapturedVertexBatch batch = CapturedVertexBatch.capture(vertexCount, output -> {
+                    for (QueuedVertices vertices : consumers) {
+                        vertices.writer().accept(output);
+                    }
+                });
+                batch.replay(vertexConsumer);
 
                 finishBatch.accept(renderType);
             }
             map.clear();
+        }
+
+        private record QueuedVertices(int vertexCount, Consumer<VertexConsumer> writer) {
         }
     }
 }
