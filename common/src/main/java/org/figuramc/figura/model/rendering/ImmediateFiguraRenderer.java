@@ -208,12 +208,16 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
     }
 
     private static void consumeVertices(boolean primary, MultiBufferSource bufferSource) {
-        VERTEX_BUFFER.consume(primary, renderType -> bufferSource.getBuffer(renderType), renderType -> {
-            if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
-                if (renderType == RenderTypes.lines() || renderType == RenderTypes.linesTranslucent() || renderType == FiguraRenderTypes.FiguraRenderType.SOLID) {
-                    bs.endBatch(renderType);
+        VERTEX_BUFFER.capture(primary, renderType -> {
+            VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
+            return batch -> {
+                batch.replay(vertexConsumer);
+                if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
+                    if (renderType == RenderTypes.lines() || renderType == RenderTypes.linesTranslucent() || renderType == FiguraRenderTypes.FiguraRenderType.SOLID) {
+                        bs.endBatch(renderType);
+                    }
                 }
-            }
+            };
         });
     }
 
@@ -728,11 +732,11 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             list.add(new QueuedVertices(vertexCount, consumer));
         }
 
-        public void consume(boolean primary, Function<RenderType, VertexConsumer> bufferProvider, Consumer<RenderType> finishBatch) {
+        public void capture(boolean primary, Function<RenderType, Consumer<CapturedVertexBatch>> batchConsumerProvider) {
             HashMap<RenderType, List<QueuedVertices>> map = primary ? primaryBuffers : secondaryBuffers;
             for (Map.Entry<RenderType, List<QueuedVertices>> entry : map.entrySet()) {
                 RenderType renderType = entry.getKey();
-                VertexConsumer vertexConsumer = bufferProvider.apply(renderType);
+                Consumer<CapturedVertexBatch> batchConsumer = batchConsumerProvider.apply(renderType);
                 List<QueuedVertices> consumers = entry.getValue();
                 int vertexCount = 0;
                 for (QueuedVertices vertices : consumers) {
@@ -743,9 +747,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
                         vertices.writer().accept(output);
                     }
                 });
-                batch.replay(vertexConsumer);
-
-                finishBatch.accept(renderType);
+                batchConsumer.accept(batch);
             }
             map.clear();
         }
