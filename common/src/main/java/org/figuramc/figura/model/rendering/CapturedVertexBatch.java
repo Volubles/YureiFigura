@@ -11,10 +11,13 @@ final class CapturedVertexBatch {
     private static final int PACKED_COLOR = 2;
     private static final int PACKED_OVERLAY = 4;
     private static final int PACKED_LIGHT = 8;
+    private static final int UV3 = 16;
     private final int[] data;
+    private final int[] uv3;
 
-    private CapturedVertexBatch(int[] data) {
+    private CapturedVertexBatch(int[] data, int[] uv3) {
         this.data = data;
+        this.uv3 = uv3;
     }
 
     static CapturedVertexBatch capture(int vertexCount, Consumer<VertexConsumer> writer) {
@@ -24,6 +27,13 @@ final class CapturedVertexBatch {
     }
 
     void replay(VertexConsumer output) {
+        replay(output, null);
+    }
+
+    void replay(VertexConsumer output, Uv3Writer uv3Writer) {
+        if (uv3 != null && uv3Writer == null) {
+            throw new IllegalArgumentException("UV3 replay requires a compatible destination");
+        }
         for (int offset = 0; offset < data.length; offset += STRIDE) {
             int variants = data[offset + 17];
             VertexConsumer vertex = output.addVertex(readFloat(offset), readFloat(offset + 1), readFloat(offset + 2));
@@ -45,6 +55,10 @@ final class CapturedVertexBatch {
             } else {
                 vertex = vertex.setUv2(data[offset + 11], data[offset + 12]);
             }
+            if ((variants & UV3) != 0) {
+                int uv3Offset = offset / STRIDE * 2;
+                vertex = uv3Writer.write(vertex, Float.intBitsToFloat(uv3[uv3Offset]), Float.intBitsToFloat(uv3[uv3Offset + 1]));
+            }
             vertex.setNormal(readFloat(offset + 13), readFloat(offset + 14), readFloat(offset + 15))
                     .setLineWidth(readFloat(offset + 16));
         }
@@ -54,9 +68,15 @@ final class CapturedVertexBatch {
         return Float.intBitsToFloat(data[index]);
     }
 
+    @FunctionalInterface
+    interface Uv3Writer {
+        VertexConsumer write(VertexConsumer output, float u, float v);
+    }
+
     private static final class Builder implements VertexConsumer {
         private static final int ALL_ATTRIBUTES = 63;
         private final int[] data;
+        private int[] uv3;
         private int offset = -STRIDE;
         private int attributes;
         private boolean finished;
@@ -146,6 +166,19 @@ final class CapturedVertexBatch {
             return this;
         }
 
+        // No @Override: 1.21.11 does not declare UV3 on VertexConsumer.
+        public VertexConsumer setUv3(float u, float v) {
+            checkVertex();
+            if (uv3 == null) {
+                uv3 = new int[data.length / STRIDE * 2];
+            }
+            int uv3Offset = offset / STRIDE * 2;
+            uv3[uv3Offset] = Float.floatToRawIntBits(u);
+            uv3[uv3Offset + 1] = Float.floatToRawIntBits(v);
+            data[offset + 17] |= UV3;
+            return this;
+        }
+
         @Override
         public VertexConsumer setOverlay(int overlay) {
             checkVertex();
@@ -207,7 +240,7 @@ final class CapturedVertexBatch {
                 throw new IllegalStateException("Vertex count does not match queued geometry");
             }
             finished = true;
-            return new CapturedVertexBatch(data);
+            return new CapturedVertexBatch(data, uv3);
         }
     }
 }
