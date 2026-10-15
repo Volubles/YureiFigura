@@ -40,7 +40,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
     public static final FiguraMat4 CAMERA_POS_TO_WORLD_MATRIX = FiguraMat4.of();
 
     private static final PartCustomization pivotOffsetter = new PartCustomization();
-    protected static final VertexBuffer VERTEX_BUFFER = new VertexBuffer();
+    private VertexBuffer vertexBuffer;
 
     public ImmediateFiguraRenderer(Avatar avatar) {
         super(avatar);
@@ -115,6 +115,18 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
     }
 
     protected int commonRender(double vertOffset) {
+        VertexBuffer previousBuffer = vertexBuffer;
+        VertexBuffer invocationBuffer = new VertexBuffer();
+        vertexBuffer = invocationBuffer;
+        try {
+            return renderInvocation(vertOffset);
+        } finally {
+            vertexBuffer = previousBuffer;
+            invocationBuffer.clear();
+        }
+    }
+
+    private int renderInvocation(double vertOffset) {
         // flag rendering state
         this.isRendering = true;
 
@@ -207,8 +219,8 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         return prev - Math.max(remainingComplexity[0], 0);
     }
 
-    private static void consumeVertices(boolean primary, MultiBufferSource bufferSource) {
-        VERTEX_BUFFER.capture(primary, renderType -> {
+    private void consumeVertices(boolean primary, MultiBufferSource bufferSource) {
+        vertexBuffer.capture(primary, renderType -> {
             VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
             return batch -> {
                 batch.replay(vertexConsumer);
@@ -689,7 +701,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         int overlay = customization.overlay;
         int light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
 
-        VERTEX_BUFFER.getBufferFor(vertexData.renderType, vertexData.primary, vertCount, vertexConsumer -> {
+        Objects.requireNonNull(vertexBuffer, "No active render invocation").getBufferFor(vertexData.renderType, vertexData.primary, vertCount, vertexConsumer -> {
             for (int i = 0; i < vertCount; i++) {
                 Vertex vertex = vertices.get(i);
 
@@ -750,6 +762,11 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
                 batchConsumer.accept(batch);
             }
             map.clear();
+        }
+
+        private void clear() {
+            primaryBuffers.clear();
+            secondaryBuffers.clear();
         }
 
         private record QueuedVertices(int vertexCount, Consumer<VertexConsumer> writer) {
