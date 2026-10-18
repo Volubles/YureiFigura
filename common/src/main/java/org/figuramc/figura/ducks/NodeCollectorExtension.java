@@ -4,7 +4,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import org.apache.commons.lang3.function.TriFunction;
 import org.figuramc.figura.avatar.Avatar;
-import org.figuramc.figura.model.rendering.nodeRenderer.FiguraSubmission;
+import org.figuramc.figura.model.rendering.nodeRenderer.FiguraRenderCall;
 
 import java.util.List;
 
@@ -17,6 +17,6 @@ interface QuadFunction<A, B, C, D, R> {
 public interface NodeCollectorExtension {
     <S extends EntityRenderState> void submitFiguraModel(Avatar avatar, S renderState, TriFunction<Avatar, S, MultiBufferSource, Void> renderer);
 
-    List<FiguraSubmission> getFiguraSubmissions();
+    List<FiguraRenderCall> getFiguraRenderCalls();
 }
 

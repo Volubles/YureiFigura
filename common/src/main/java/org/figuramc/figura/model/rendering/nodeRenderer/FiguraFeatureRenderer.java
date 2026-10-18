@@ -1,28 +1,24 @@
 package org.figuramc.figura.model.rendering.nodeRenderer;
 
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.SubmitNodeCollection;
-import net.minecraft.client.renderer.SubmitNodeStorage;
-import net.minecraft.client.renderer.feature.CustomFeatureRenderer;
 import org.figuramc.figura.ducks.NodeCollectorExtension;
 
 import java.util.List;
-import java.util.Map;
 
 public class FiguraFeatureRenderer {
     public void render(SubmitNodeCollection submitNodeCollection, MultiBufferSource.BufferSource bufferSource) {
-        List<FiguraSubmission> figuraSubmissions = ((NodeCollectorExtension) submitNodeCollection).getFiguraSubmissions();
+        List<FiguraRenderCall> renderCalls = ((NodeCollectorExtension) submitNodeCollection).getFiguraRenderCalls();
 
-        for (int i = 0; i < figuraSubmissions.size(); i++) {
-            FiguraSubmission figuraSubmission = figuraSubmissions.get(i);
-            if (figuraSubmission.avatar() == null)
+        for (int i = 0; i < renderCalls.size(); i++) {
+            FiguraRenderCall renderCall = renderCalls.get(i);
+            if (renderCall.avatar() == null) {
                 continue;
+            }
 
-            figuraSubmission.renderer().apply(
-                    figuraSubmission.avatar(),
-                    figuraSubmission.renderState(),
+            renderCall.renderer().apply(
+                    renderCall.avatar(),
+                    renderCall.renderState(),
                     bufferSource
             );
         }

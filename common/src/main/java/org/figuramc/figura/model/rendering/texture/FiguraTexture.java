@@ -26,6 +26,7 @@ import org.figuramc.figura.math.matrix.FiguraMat4;
 import org.figuramc.figura.math.vector.FiguraVec2;
 import org.figuramc.figura.math.vector.FiguraVec3;
 import org.figuramc.figura.math.vector.FiguraVec4;
+import org.figuramc.figura.model.rendering.nodeRenderer.FiguraSubmission;
 import org.figuramc.figura.mixin.render.TextureManagerAccessor;
 import org.figuramc.figura.utils.ColorUtils;
 import org.figuramc.figura.utils.FiguraIdentifier;
@@ -65,6 +66,8 @@ public class FiguraTexture extends SimpleTexture {
     private final NativeImage nativeImageTexture;
     private NativeImage backup;
     private boolean isClosed = false;
+    private boolean closeRequested;
+    private int renderReferences;
 
     public FiguraTexture(Avatar owner, String name, byte[] data) {
         super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + UUID.randomUUID()));
@@ -116,11 +119,16 @@ public class FiguraTexture extends SimpleTexture {
 
     @Override
     public void close() {
-        // Make sure it doesn't close twice (minecraft tries to close the texture when reloading textures
-        if (isClosed) return;
+        closeRequested = true;
+        if (isClosed || renderReferences != 0) {
+            return;
+        }
 
         isClosed = true;
+        releaseTexture();
+    }
 
+    private void releaseTexture() {
         // Close native images
         if (nativeImageTexture != null)
             nativeImageTexture.close();
@@ -128,10 +136,37 @@ public class FiguraTexture extends SimpleTexture {
             backup.close();
 
         super.close();
-        ((TextureManagerAccessor) Minecraft.getInstance().getTextureManager()).getByPath().remove(this.getLocation());
+        ((TextureManagerAccessor) Minecraft.getInstance().getTextureManager()).getByPath().remove(this.getLocation(), this);
+    }
+
+    /** Keep the uploaded texture alive until the owning render pass has finished. */
+    public FiguraSubmission.TextureLease retainForRender() {
+        if (isClosed) {
+            throw new IllegalStateException("Cannot retain a closed Figura texture");
+        }
+        renderReferences = Math.incrementExact(renderReferences);
+        return new FiguraSubmission.TextureLease() {
+            private boolean released;
+
+            @Override
+            public void close() {
+                if (released) {
+                    return;
+                }
+                released = true;
+                renderReferences--;
+                if (closeRequested && renderReferences == 0) {
+                    FiguraTexture.this.close();
+                }
+            }
+        };
     }
 
     public void uploadIfDirty(boolean clamp, boolean blur) {
+        // Reloads and Lua updates must not replace a texture used by staged geometry.
+        if (closeRequested || renderReferences != 0) {
+            return;
+        }
         if (!registered) {
             Minecraft.getInstance().getTextureManager().register(this.getLocation(), this);
             registered = true;

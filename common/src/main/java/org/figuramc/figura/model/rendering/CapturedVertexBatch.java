@@ -4,7 +4,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import java.util.function.Consumer;
 
-final class CapturedVertexBatch {
+public final class CapturedVertexBatch {
     // Position, RGBA, UV, overlay UV, light UV, normal, line width and setter variants.
     private static final int STRIDE = 18;
     private static final int FLOAT_COLOR = 1;
@@ -20,17 +20,17 @@ final class CapturedVertexBatch {
         this.uv3 = uv3;
     }
 
-    static CapturedVertexBatch capture(int vertexCount, Consumer<VertexConsumer> writer) {
+    public static CapturedVertexBatch capture(int vertexCount, Consumer<VertexConsumer> writer) {
         Builder builder = new Builder(vertexCount);
         writer.accept(builder);
         return builder.finish();
     }
 
-    void replay(VertexConsumer output) {
+    public void replay(VertexConsumer output) {
         replay(output, null);
     }
 
-    void replay(VertexConsumer output, Uv3Writer uv3Writer) {
+    public void replay(VertexConsumer output, Uv3Writer uv3Writer) {
         if (uv3 != null && uv3Writer == null) {
             throw new IllegalArgumentException("UV3 replay requires a compatible destination");
         }
@@ -69,7 +69,7 @@ final class CapturedVertexBatch {
     }
 
     @FunctionalInterface
-    interface Uv3Writer {
+    public interface Uv3Writer {
         VertexConsumer write(VertexConsumer output, float u, float v);
     }
 

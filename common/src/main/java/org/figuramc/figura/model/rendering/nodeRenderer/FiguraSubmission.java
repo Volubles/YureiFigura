@@ -1,10 +1,56 @@
 package org.figuramc.figura.model.rendering.nodeRenderer;
 
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.state.EntityRenderState;
-import org.apache.commons.lang3.function.TriFunction;
-import org.figuramc.figura.avatar.Avatar;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import org.figuramc.figura.model.rendering.CapturedVertexBatch;
 
-public record FiguraSubmission(Avatar avatar, EntityRenderState renderState, TriFunction<Avatar, EntityRenderState, MultiBufferSource, Void> renderer) {
+import java.util.Objects;
 
+/** Frozen geometry and its selected material; replay never evaluates avatar code. */
+public final class FiguraSubmission implements AutoCloseable {
+    private final RenderType material;
+    private final CapturedVertexBatch vertices;
+    private TextureLease texture;
+    private boolean closed;
+
+    /** Transfers the lease to this submission; the pass owner must close it after drawing or discard. */
+    public FiguraSubmission(RenderType material, CapturedVertexBatch vertices, TextureLease texture) {
+        this.material = Objects.requireNonNull(material);
+        this.vertices = Objects.requireNonNull(vertices);
+        this.texture = texture;
+    }
+
+    public RenderType material() {
+        return material;
+    }
+
+    public void replay(VertexConsumer output) {
+        replay(output, null);
+    }
+
+    public void replay(VertexConsumer output, CapturedVertexBatch.Uv3Writer uv3Writer) {
+        if (closed) {
+            throw new IllegalStateException("Figura submission is closed");
+        }
+        vertices.replay(output, uv3Writer);
+    }
+
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        TextureLease retained = texture;
+        texture = null;
+        if (retained != null) {
+            retained.close();
+        }
+    }
+
+    @FunctionalInterface
+    public interface TextureLease extends AutoCloseable {
+        @Override
+        void close();
+    }
 }

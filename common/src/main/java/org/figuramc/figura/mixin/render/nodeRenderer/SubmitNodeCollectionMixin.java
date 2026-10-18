@@ -17,7 +17,7 @@ import org.apache.commons.lang3.function.TriFunction;
 import org.figuramc.figura.avatar.Avatar;
 import org.figuramc.figura.avatar.AvatarManager;
 import org.figuramc.figura.ducks.FlameSubmitExtension;
-import org.figuramc.figura.model.rendering.nodeRenderer.FiguraSubmission;
+import org.figuramc.figura.model.rendering.nodeRenderer.FiguraRenderCall;
 import org.figuramc.figura.ducks.FiguraSubmitCallBackExtension;
 import org.figuramc.figura.ducks.NodeCollectorExtension;
 import org.jetbrains.annotations.Nullable;
@@ -33,15 +33,15 @@ import java.util.List;
 @Mixin(SubmitNodeCollection.class)
 public class SubmitNodeCollectionMixin implements NodeCollectorExtension {
     @Unique
-    List<FiguraSubmission> figuraSubmissions = new ArrayList<>();
+    List<FiguraRenderCall> figuraRenderCalls = new ArrayList<>();
 
     public <S extends EntityRenderState> void submitFiguraModel(Avatar avatar, S renderState, TriFunction<Avatar, S, MultiBufferSource, Void> renderer) {
-        figuraSubmissions.add(new FiguraSubmission(avatar, renderState, (TriFunction<Avatar, EntityRenderState, MultiBufferSource, Void>) renderer));
+        figuraRenderCalls.add(new FiguraRenderCall(avatar, renderState, (TriFunction<Avatar, EntityRenderState, MultiBufferSource, Void>) renderer));
     }
 
     @Override
-    public List<FiguraSubmission> getFiguraSubmissions() {
-        return figuraSubmissions;
+    public List<FiguraRenderCall> getFiguraRenderCalls() {
+        return figuraRenderCalls;
     }
 
     @Inject(method = "submitModel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/feature/ModelFeatureRenderer$Storage;add(Lnet/minecraft/client/renderer/rendertype/RenderType;Lnet/minecraft/client/renderer/SubmitNodeStorage$ModelSubmit;)V"))
@@ -109,6 +109,6 @@ public class SubmitNodeCollectionMixin implements NodeCollectorExtension {
 
     @Inject(method = "clear", at = @At("HEAD"))
     private void figura$clearSubmissions(CallbackInfo ci) {
-        figuraSubmissions.clear();
+        figuraRenderCalls.clear();
     }
 }

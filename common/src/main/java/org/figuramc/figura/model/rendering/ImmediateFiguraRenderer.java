@@ -21,10 +21,12 @@ import org.figuramc.figura.math.matrix.FiguraMat4;
 import org.figuramc.figura.math.vector.FiguraVec3;
 import org.figuramc.figura.math.vector.FiguraVec4;
 import org.figuramc.figura.model.*;
+import org.figuramc.figura.model.rendering.nodeRenderer.FiguraSubmission;
 import org.figuramc.figura.model.rendering.texture.FiguraRenderTypes;
 import org.figuramc.figura.model.rendering.texture.FiguraTexture;
 import org.figuramc.figura.model.rendering.texture.FiguraTextureSet;
 import org.figuramc.figura.model.rendertasks.RenderTask;
+import org.figuramc.figura.mixin.render.TextureManagerAccessor;
 import org.figuramc.figura.utils.ColorUtils;
 import org.figuramc.figura.utils.ui.UIHelper;
 
@@ -116,13 +118,13 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
 
     protected int commonRender(double vertOffset) {
         VertexBuffer previousBuffer = vertexBuffer;
-        VertexBuffer invocationBuffer = new VertexBuffer();
-        vertexBuffer = invocationBuffer;
-        try {
-            return renderInvocation(vertOffset);
-        } finally {
-            vertexBuffer = previousBuffer;
-            invocationBuffer.clear();
+        try (VertexBuffer invocationBuffer = new VertexBuffer()) {
+            vertexBuffer = invocationBuffer;
+            try {
+                return renderInvocation(vertOffset);
+            } finally {
+                vertexBuffer = previousBuffer;
+            }
         }
     }
 
@@ -223,7 +225,11 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         vertexBuffer.capture(primary, renderType -> {
             VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
             return batch -> {
-                batch.replay(vertexConsumer);
+                FiguraTexture texture = vertexBuffer.textures.get(renderType);
+                FiguraSubmission.TextureLease lease = texture == null ? null : texture.retainForRender();
+                FiguraSubmission submission = new FiguraSubmission(renderType, batch, lease);
+                vertexBuffer.submissions.add(submission);
+                submission.replay(vertexConsumer);
                 if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
                     if (renderType == RenderTypes.lines() || renderType == RenderTypes.linesTranslucent() || renderType == FiguraRenderTypes.FiguraRenderType.SOLID) {
                         bs.endBatch(renderType);
@@ -653,6 +659,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
 
         // get texture
         Identifier id = textureSet.getOverrideTexture(avatar.owner, texture);
+        ret.texture = id;
 
         // color
         ret.color = primary ? customization.color : customization.color2;
@@ -701,7 +708,9 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         int overlay = customization.overlay;
         int light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
 
-        Objects.requireNonNull(vertexBuffer, "No active render invocation").getBufferFor(vertexData.renderType, vertexData.primary, vertCount, vertexConsumer -> {
+        VertexBuffer invocationBuffer = Objects.requireNonNull(vertexBuffer, "No active render invocation");
+        invocationBuffer.retainTexture(vertexData.renderType, vertexData.texture);
+        invocationBuffer.getBufferFor(vertexData.renderType, vertexData.primary, vertCount, vertexConsumer -> {
             for (int i = 0; i < vertCount; i++) {
                 Vertex vertex = vertices.get(i);
 
@@ -728,15 +737,26 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
 
     private static class VertexData {
         public RenderType renderType;
+        public Identifier texture;
         public boolean fullBright;
         public float vertexOffset;
         public FiguraVec3 color;
         public boolean primary;
     }
 
-    private static class VertexBuffer {
+    private static class VertexBuffer implements AutoCloseable {
         private final HashMap<RenderType, List<QueuedVertices>> primaryBuffers = new LinkedHashMap<>();
         private final HashMap<RenderType, List<QueuedVertices>> secondaryBuffers = new LinkedHashMap<>();
+        private final Map<RenderType, FiguraTexture> textures = new HashMap<>();
+        private final Map<FiguraTexture, FiguraSubmission.TextureLease> retainedTextures = new IdentityHashMap<>();
+        private final List<FiguraSubmission> submissions = new ArrayList<>();
+
+        private void retainTexture(RenderType material, Identifier id) {
+            if (id != null && ((TextureManagerAccessor) Minecraft.getInstance().getTextureManager()).getByPath().get(id) instanceof FiguraTexture texture) {
+                retainedTextures.computeIfAbsent(texture, FiguraTexture::retainForRender);
+                textures.put(material, texture);
+            }
+        }
 
         public void getBufferFor(RenderType renderType, boolean primary, int vertexCount, Consumer<VertexConsumer> consumer) {
             HashMap<RenderType, List<QueuedVertices>> buffer = primary ? primaryBuffers : secondaryBuffers;
@@ -764,9 +784,43 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             map.clear();
         }
 
-        private void clear() {
+        @Override
+        public void close() {
             primaryBuffers.clear();
             secondaryBuffers.clear();
+            textures.clear();
+            Throwable failure = null;
+            for (FiguraSubmission submission : submissions) {
+                failure = releaseResource(submission, failure);
+            }
+            submissions.clear();
+            for (FiguraSubmission.TextureLease texture : retainedTextures.values()) {
+                failure = releaseResource(texture, failure);
+            }
+            retainedTextures.clear();
+            if (failure instanceof RuntimeException exception) {
+                throw exception;
+            }
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            if (failure != null) {
+                throw new IllegalStateException("Failed to release Figura render resources", failure);
+            }
+        }
+
+        private static Throwable releaseResource(AutoCloseable resource, Throwable failure) {
+            try {
+                resource.close();
+            } catch (Throwable exception) {
+                if (failure == null) {
+                    return exception;
+                }
+                if (exception != failure) {
+                    failure.addSuppressed(exception);
+                }
+            }
+            return failure;
         }
 
         private record QueuedVertices(int vertexCount, Consumer<VertexConsumer> writer) {
