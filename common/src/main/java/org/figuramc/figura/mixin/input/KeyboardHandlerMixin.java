@@ -37,12 +37,12 @@ public class KeyboardHandlerMixin {
         if (avatar == null || avatar.luaRuntime == null)
             return;
 
-        if (avatar.keyPressEvent(event.key(), action, event.modifiers()) && (this.minecraft.mouseHandler.isMouseGrabbed() || this.minecraft.screen == null)) {
+        if (avatar.keyPressEvent(org.figuramc.figura.utils.InputUtils.keyId(event.key()), org.figuramc.figura.utils.InputUtils.keyAction(action), org.figuramc.figura.utils.InputUtils.modifiers(event.modifiers())) && (this.minecraft.mouseHandler.isMouseGrabbed() || this.minecraft.gui.screen() == null)) {
             ci.cancel();
             return;
         }
 
-        if (avatar.luaRuntime != null && FiguraKeybind.set(avatar.luaRuntime.keybinds.keyBindings, InputConstants.getKey(event), action != 0, event.modifiers())) {
+        if (avatar.luaRuntime != null && FiguraKeybind.set(avatar.luaRuntime.keybinds.keyBindings, InputConstants.getKey(event), action != 0, org.figuramc.figura.utils.InputUtils.modifiers(event.modifiers()))) {
             KeyMapping.setAll();
             ci.cancel();
         }
@@ -52,6 +52,6 @@ public class KeyboardHandlerMixin {
     private void charTyped(long window, CharacterEvent characterEvent, CallbackInfo ci) {
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar != null)
-            avatar.charTypedEvent(Character.toString(characterEvent.codepoint()), characterEvent.modifiers(), characterEvent.codepoint());
+            avatar.charTypedEvent(Character.toString(characterEvent.codepoint()), org.figuramc.figura.utils.InputUtils.modifiers(), characterEvent.codepoint());
     }
 }

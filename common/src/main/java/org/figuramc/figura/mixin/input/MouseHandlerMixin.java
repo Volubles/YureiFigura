@@ -35,21 +35,23 @@ public class MouseHandlerMixin {
         if (avatar == null || avatar.luaRuntime == null)
             return;
 
-        if (avatar.mousePressEvent(mouseButtonInfo.button(), action, mouseButtonInfo.modifiers()) && (this.mouseGrabbed || this.minecraft.screen == null)) {
+        if (avatar.mousePressEvent(org.figuramc.figura.utils.InputUtils.mouseButton(mouseButtonInfo.button()), action, org.figuramc.figura.utils.InputUtils.modifiers(mouseButtonInfo.modifiers())) && (this.mouseGrabbed || this.minecraft.gui.screen() == null)) {
             ci.cancel();
             return;
         }
 
         boolean pressed = action != 0;
 
-        if (avatar.luaRuntime != null && FiguraKeybind.set(avatar.luaRuntime.keybinds.keyBindings, InputConstants.Type.MOUSE.getOrCreate(mouseButtonInfo.button()), pressed, mouseButtonInfo.modifiers()))
+        if (avatar.luaRuntime != null && FiguraKeybind.set(avatar.luaRuntime.keybinds.keyBindings, InputConstants.Type.MOUSE.getOrCreate(mouseButtonInfo.button()), pressed, org.figuramc.figura.utils.InputUtils.modifiers(mouseButtonInfo.modifiers())))
             ci.cancel();
 
-        if (avatar.luaRuntime != null && pressed && avatar.luaRuntime.host.unlockCursor && this.minecraft.screen == null)
+        if (avatar.luaRuntime != null && pressed && avatar.luaRuntime.host.unlockCursor && this.minecraft.gui.screen() == null)
             ci.cancel();
 
         if (avatar.luaRuntime != null && pressed && ActionWheel.isEnabled()) {
-            if (mouseButtonInfo.button() <= 1) ActionWheel.execute(ActionWheel.getSelected(), mouseButtonInfo.button() == 0);
+            if (mouseButtonInfo.button() == InputConstants.MOUSE_BUTTON_LEFT || mouseButtonInfo.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
+                ActionWheel.execute(ActionWheel.getSelected(), mouseButtonInfo.button() == InputConstants.MOUSE_BUTTON_LEFT);
+            }
             ci.cancel();
         }
     }
@@ -57,7 +59,7 @@ public class MouseHandlerMixin {
     @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
     private void onScroll(long window, double scrollDeltaX, double scrollDeltaY, CallbackInfo ci) {
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
-        if (avatar != null && avatar.mouseScrollEvent(scrollDeltaY) && (this.mouseGrabbed || this.minecraft.screen == null)) {
+        if (avatar != null && avatar.mouseScrollEvent(scrollDeltaY) && (this.mouseGrabbed || this.minecraft.gui.screen() == null)) {
             ci.cancel();
             return;
         }
@@ -72,9 +74,14 @@ public class MouseHandlerMixin {
     }
 
     @Inject(method = "onMove", at = @At("HEAD"), cancellable = true)
-    private void onMove(long window, double x, double y, CallbackInfo ci) {
+    private void onMove(long window, double x, double y, double relativeX, double relativeY, CallbackInfo ci) {
+        if (window == 0 || window != this.minecraft.getWindow().handle()) {
+            return;
+        }
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
-        if (avatar != null && avatar.mouseMoveEvent(x - this.xpos, y - this.ypos) && (this.mouseGrabbed || this.minecraft.screen == null)) {
+        double deltaX = this.mouseGrabbed ? relativeX : x - this.xpos;
+        double deltaY = this.mouseGrabbed ? relativeY : y - this.ypos;
+        if (avatar != null && avatar.mouseMoveEvent(deltaX, deltaY) && (this.mouseGrabbed || this.minecraft.gui.screen() == null)) {
             this.xpos = x;
             this.ypos = y;
             ci.cancel();
