@@ -424,11 +424,22 @@ public final class UIHelper {
     }
 
     public static void renderWithoutScissors(GuiGraphics gui, Consumer<GuiGraphics> toRun) {
-        // very jank
-        gui.enableScissor(0, 0, 1, 1);
-        RenderSystem.disableScissorForRenderTypeDraws();
-        toRun.accept(gui);
-        gui.disableScissor();
+        var scissors = ((GuiGraphicsAccessor) gui).figura$getScissorStack();
+        java.util.List<ScreenRectangle> previous = new java.util.ArrayList<>();
+        while (scissors.peek() != null) {
+            previous.add(scissors.peek());
+            scissors.pop();
+        }
+        try {
+            toRun.accept(gui);
+        } finally {
+            while (scissors.peek() != null) {
+                scissors.pop();
+            }
+            for (int i = previous.size() - 1; i >= 0; i--) {
+                scissors.push(previous.get(i));
+            }
+        }
     }
 
     public static void highlight(GuiGraphics gui, FiguraWidget widget, Component text) {
