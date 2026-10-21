@@ -110,7 +110,10 @@ public class FiguraTexture extends SimpleTexture {
 
     @Override
     public void apply(TextureContents textureContents) {
-        uploadIfDirty(false, false);
+        try (NativeImage loadedImage = textureContents.image()) {
+            // the loader gets a copy. don't mess with our avatar pixels or texture leases.
+            uploadIfDirty(false, false);
+        }
     }
 
     public void closeFromRenderThread() {
@@ -173,19 +176,19 @@ public class FiguraTexture extends SimpleTexture {
         }
 
         if (dirty && !isClosed && nativeImageTexture != null) {
-            dirty = false;
-
             AddressMode addressMode = clamp ? AddressMode.CLAMP_TO_EDGE : AddressMode.REPEAT;
             FilterMode filterMode = blur ? FilterMode.LINEAR : FilterMode.NEAREST;
             this.sampler = RenderSystem.getSamplerCache().getSampler(addressMode, addressMode, filterMode, filterMode, false);
 
             this.doLoad(nativeImageTexture);
+            dirty = false;
         }
     }
 
     @Override
     protected void doLoad(NativeImage nativeImage) {
         GpuDevice gpuDevice = RenderSystem.getDevice();
+        super.close();
         this.texture = gpuDevice.createTexture(this.resourceId()::toString, 5, TextureFormat.RGBA8, nativeImage.getWidth(), nativeImage.getHeight(), 1, 1);
         this.textureView = gpuDevice.createTextureView(this.texture);
         gpuDevice.createCommandEncoder().writeToTexture(this.texture, nativeImage);
