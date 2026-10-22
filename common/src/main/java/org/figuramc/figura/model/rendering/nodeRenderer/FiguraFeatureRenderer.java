@@ -1,26 +1,17 @@
 package org.figuramc.figura.model.rendering.nodeRenderer;
 
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.SubmitNodeCollection;
-import org.figuramc.figura.ducks.NodeCollectorExtension;
-
+import net.minecraft.client.renderer.feature.FeatureFrameContext;
+import net.minecraft.client.renderer.feature.FeatureRendererType;
+import net.minecraft.client.renderer.feature.RenderTypeFeatureRenderer;
 import java.util.List;
 
-public class FiguraFeatureRenderer {
-    public void render(SubmitNodeCollection submitNodeCollection, MultiBufferSource.BufferSource bufferSource) {
-        List<FiguraRenderCall> renderCalls = ((NodeCollectorExtension) submitNodeCollection).getFiguraRenderCalls();
+public final class FiguraFeatureRenderer extends RenderTypeFeatureRenderer<FiguraSubmission> {
+    public static final FeatureRendererType<FiguraSubmission> TYPE = FeatureRendererType.create("Figura");
 
-        for (int i = 0; i < renderCalls.size(); i++) {
-            FiguraRenderCall renderCall = renderCalls.get(i);
-            if (renderCall.avatar() == null) {
-                continue;
-            }
-
-            renderCall.renderer().apply(
-                    renderCall.avatar(),
-                    renderCall.renderState(),
-                    bufferSource
-            );
+    @Override
+    protected void buildGroup(FeatureFrameContext context, List<FiguraSubmission> submissions) {
+        for (FiguraSubmission submission : submissions) {
+            submission.replay(getVertexBuilder(submission.material()), (output, u, v) -> output.setUv3(u, v));
         }
     }
 }

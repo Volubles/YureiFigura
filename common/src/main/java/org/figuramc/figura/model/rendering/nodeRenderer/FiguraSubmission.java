@@ -7,7 +7,7 @@ import org.figuramc.figura.model.rendering.CapturedVertexBatch;
 import java.util.Objects;
 
 /** Frozen geometry and its selected material; replay never evaluates avatar code. */
-public final class FiguraSubmission implements AutoCloseable {
+public final class FiguraSubmission implements AutoCloseable, net.minecraft.client.renderer.feature.submit.SubmitNode {
     private final RenderType material;
     private final CapturedVertexBatch vertices;
     private TextureLease texture;
@@ -18,6 +18,11 @@ public final class FiguraSubmission implements AutoCloseable {
         this.material = Objects.requireNonNull(material);
         this.vertices = Objects.requireNonNull(vertices);
         this.texture = texture;
+    }
+
+    @Override
+    public net.minecraft.client.renderer.feature.FeatureRendererType<FiguraSubmission> featureType() {
+        return FiguraFeatureRenderer.TYPE;
     }
 
     public RenderType material() {
