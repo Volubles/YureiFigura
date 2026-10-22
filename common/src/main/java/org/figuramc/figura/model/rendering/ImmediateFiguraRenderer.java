@@ -1,5 +1,8 @@
 package org.figuramc.figura.model.rendering;
 
+import net.minecraft.util.LightCoordsUtil;
+
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.datafixers.util.Pair;
@@ -14,6 +17,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import org.figuramc.figura.FiguraMod;
 import org.figuramc.figura.avatar.Avatar;
+import org.figuramc.figura.ducks.NodeCollectorExtension;
 import org.figuramc.figura.config.Configs;
 import org.figuramc.figura.lua.api.ClientAPI;
 import org.figuramc.figura.math.matrix.FiguraMat3;
@@ -206,10 +210,6 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             consumeVertices(false, bufferSource);
             FiguraMod.popProfiler(2);
 
-            if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
-                bs.endLastBatch();
-            }
-
             // finish rendering
             checkEmpty();
         }
@@ -221,21 +221,18 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         return prev - Math.max(remainingComplexity[0], 0);
     }
 
-    private void consumeVertices(boolean primary, MultiBufferSource bufferSource) {
-        vertexBuffer.capture(primary, renderType -> {
-            VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
-            return batch -> {
+    private void consumeVertices(boolean primary, SubmitNodeCollector bufferSource) {
+        vertexBuffer.capture(primary, renderType -> batch -> {
                 FiguraTexture texture = vertexBuffer.textures.get(renderType);
                 FiguraSubmission.TextureLease lease = texture == null ? null : texture.retainForRender();
                 FiguraSubmission submission = new FiguraSubmission(renderType, batch, lease);
-                vertexBuffer.submissions.add(submission);
-                submission.replay(vertexConsumer);
-                if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
-                    if (renderType == RenderTypes.lines() || renderType == RenderTypes.linesTranslucent() || renderType == FiguraRenderTypes.FiguraRenderType.SOLID) {
-                        bs.endBatch(renderType);
+                try {
+                    ((NodeCollectorExtension) bufferSource).figura$submitGeometry(submission);
+                } catch (RuntimeException | Error failure) {
+                    try (submission) {
+                        throw failure;
                     }
                 }
-            };
         });
     }
 
@@ -348,7 +345,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
                 FiguraVec3 pos = part.savedPartToWorldMat.apply(0d, 0d, 0d);
                 int block = l.getBrightness(LightLayer.BLOCK, pos.asBlockPos());
                 int sky = l.getBrightness(LightLayer.SKY, pos.asBlockPos());
-                customizationStack.peek().light = LightTexture.pack(block, sky);
+                customizationStack.peek().light = LightCoordsUtil.pack(block, sky);
             }
 
             if (custom.alpha != null)
@@ -377,7 +374,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             if (renderPivot || renderTasks || renderPivotParts) {
                 // fix light and overlay
                 PartCustomization parent = customizationStack.peek();
-                int light = parent.light != null ? parent.light : LightTexture.FULL_BRIGHT;
+                int light = parent.light != null ? parent.light : LightCoordsUtil.FULL_BRIGHT;
                 int overlay = parent.overlay != null ? parent.overlay : OverlayTexture.NO_OVERLAY;
 
                 // fix pivots
@@ -501,14 +498,12 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
 
         PoseStack stack = customization.copyIntoGlobalPoseStack();
 
-        renderLineBox(stack.last(), bufferSource.getBuffer(RenderTypes.lines()),
-                -boxSize, -boxSize, -boxSize,
-                boxSize, boxSize, boxSize,
-                (float) color.x, (float) color.y, (float) color.z, 1f);
-
-        if (bufferSource instanceof MultiBufferSource.BufferSource bs) {
-            bs.endBatch(RenderTypes.lines());
-        }
+        double size = boxSize;
+        float red = (float) color.x;
+        float green = (float) color.y;
+        float blue = (float) color.z;
+        bufferSource.submitCustomGeometry(stack, RenderTypes.lines(), (pose, output) ->
+                renderLineBox(pose, output, -size, -size, -size, size, size, size, red, green, blue, 1f));
     }
 
     public static void renderLineBox(PoseStack.Pose pose, VertexConsumer vertices, double x1, double y1, double z1, double x2, double y2, double z2, float r, float g, float b, float a) {
@@ -670,7 +665,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         // get render type
         if (id != null) {
             if (translucent) {
-                ret.renderType = RenderTypes.itemEntityTranslucentCull(id);
+                ret.renderType = RenderTypes.entityTranslucentCull(id);
                 return ret;
             }
             if (glowing) {
@@ -706,7 +701,7 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         uvFixer.set(textureSet.getWidth(), textureSet.getHeight(), 1); // Dividing by this makes uv 0 to 1
 
         int overlay = customization.overlay;
-        int light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
+        int light = vertexData.fullBright ? LightCoordsUtil.FULL_BRIGHT : customization.light;
 
         VertexBuffer invocationBuffer = Objects.requireNonNull(vertexBuffer, "No active render invocation");
         invocationBuffer.retainTexture(vertexData.renderType, vertexData.texture);
@@ -749,7 +744,6 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
         private final HashMap<RenderType, List<QueuedVertices>> secondaryBuffers = new LinkedHashMap<>();
         private final Map<RenderType, FiguraTexture> textures = new HashMap<>();
         private final Map<FiguraTexture, FiguraSubmission.TextureLease> retainedTextures = new IdentityHashMap<>();
-        private final List<FiguraSubmission> submissions = new ArrayList<>();
 
         private void retainTexture(RenderType material, Identifier id) {
             if (id != null && ((TextureManagerAccessor) Minecraft.getInstance().getTextureManager()).getByPath().get(id) instanceof FiguraTexture texture) {
@@ -790,10 +784,6 @@ public class ImmediateFiguraRenderer extends FiguraRenderer {
             secondaryBuffers.clear();
             textures.clear();
             Throwable failure = null;
-            for (FiguraSubmission submission : submissions) {
-                failure = releaseResource(submission, failure);
-            }
-            submissions.clear();
             for (FiguraSubmission.TextureLease texture : retainedTextures.values()) {
                 failure = releaseResource(texture, failure);
             }
