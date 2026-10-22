@@ -1,10 +1,11 @@
 package org.figuramc.figura.lua.api;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTexture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
@@ -102,7 +103,7 @@ public class TextureAPI {
 
         try {
             ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-            image = NativeImage.read(null, bais);
+            image = NativeImage.read(bais);
             bais.close();
         } catch (Exception e) {
             throw new LuaError("Could not read image: " + e.getMessage());
@@ -161,24 +162,8 @@ public class TextureAPI {
 
             GpuTexture atlasGpuTexture = atlas.getTexture();
             TextureAtlasAccessor atlasAccessor = (TextureAtlasAccessor) atlas;
-            NativeImage nativeImage = new NativeImage(atlasAccessor.figura$getWidth(), atlasAccessor.figura$getHeight(), false);
-            int width = atlasAccessor.figura$getWidth();
-            int height = atlasAccessor.figura$getHeight();
-
-            CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-            GpuBuffer gpuBuffer = RenderSystem.getDevice().createBuffer(() -> "Atlas Read Buffer", 9, width * height * atlasGpuTexture.getFormat().pixelSize());
-            encoder.copyTextureToBuffer(atlasGpuTexture, gpuBuffer, 0, () -> {
-                try (GpuBuffer.MappedView readView = encoder.mapBuffer(gpuBuffer, true, false)) {
-                    for (int k = 0; k < height; k++) {
-                        for (int l = 0; l < width; l++) {
-                            int m = readView.data().getInt((l + k * width) * atlasGpuTexture.getFormat().pixelSize());
-                            nativeImage.setPixelABGR(l, height - k - 1, m | 0xFF000000);
-                        }
-                    }
-                }
-                gpuBuffer.close();
-            }, 0);
-            return register(name, nativeImage, false);
+            return org.figuramc.figura.model.rendering.texture.GpuTextureReadback.read(owner, name, atlasGpuTexture,
+                    atlasAccessor.figura$getWidth(), atlasAccessor.figura$getHeight(), false);
         } catch (Exception ignored) {}
         try {
             Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(resourceLocation);
