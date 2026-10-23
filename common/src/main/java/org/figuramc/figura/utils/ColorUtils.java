@@ -110,7 +110,7 @@ public class ColorUtils {
 
         try {
             ChatFormatting formatting = ChatFormatting.valueOf(hex.toUpperCase(Locale.US));
-            Integer i = formatting.getColor();
+            Integer i = net.minecraft.network.chat.TextColor.fromLegacyFormat(formatting).getValue();
             if (i != null)
                 return intToRGB(i);
         } catch (Exception ignored) {}

@@ -110,7 +110,7 @@ public class BiomeAPI {
     @LuaWhitelist
     @LuaMethodDoc("biome.get_sky_color")
     public FiguraVec3 getSkyColor() {
-        return ColorUtils.intToRGB(biome.getAttributes().applyModifier(EnvironmentAttributes.SKY_COLOR, 0));
+        return fromColorVector(biome.getAttributes().applyModifier(EnvironmentAttributes.SKY_COLOR, EnvironmentAttributes.SKY_COLOR.defaultValue()));
     }
 
     @LuaWhitelist
@@ -129,7 +129,7 @@ public class BiomeAPI {
     @LuaWhitelist
     @LuaMethodDoc("biome.get_fog_color")
     public FiguraVec3 getFogColor() {
-        return ColorUtils.intToRGB(biome.getAttributes().applyModifier(EnvironmentAttributes.FOG_COLOR, 0));
+        return fromColorVector(biome.getAttributes().applyModifier(EnvironmentAttributes.FOG_COLOR, EnvironmentAttributes.FOG_COLOR.defaultValue()));
     }
 
     @LuaWhitelist
@@ -141,7 +141,7 @@ public class BiomeAPI {
     @LuaWhitelist
     @LuaMethodDoc("biome.get_water_fog_color")
     public FiguraVec3 getWaterFogColor() {
-        return ColorUtils.intToRGB(biome.getAttributes().applyModifier(EnvironmentAttributes.WATER_FOG_COLOR, 0));
+        return fromColorVector(biome.getAttributes().applyModifier(EnvironmentAttributes.WATER_FOG_COLOR, EnvironmentAttributes.WATER_FOG_COLOR.defaultValue()));
     }
 
     @LuaWhitelist
@@ -176,4 +176,8 @@ public class BiomeAPI {
     public String toString() {
         return id + " (Biome)";
     }
+    private static FiguraVec3 fromColorVector(org.joml.Vector3fc color) {
+        return FiguraVec3.of(color.x(), color.y(), color.z());
+    }
+
 }

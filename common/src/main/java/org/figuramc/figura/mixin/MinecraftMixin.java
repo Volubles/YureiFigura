@@ -35,9 +35,9 @@ public abstract class MinecraftMixin {
     @Shadow @Final public MouseHandler mouseHandler;
     @Shadow @Final public Options options;
     @Shadow public LocalPlayer player;
-    @Shadow public Entity cameraEntity;
+    @Shadow public abstract Entity getCameraEntity();
+    @Shadow @Final public net.minecraft.client.gui.Gui gui;
 
-    @Shadow public abstract void setScreen(@Nullable Screen screen);
 
     @Unique
     private boolean scriptMouseUnlock = false;
@@ -56,7 +56,7 @@ public abstract class MinecraftMixin {
 
         // reload avatar button
         if (Configs.WARDROBE_BUTTON.keyBind.consumeClick())
-            this.setScreen(new WardrobeScreen(null));
+            this.gui.setScreen(new WardrobeScreen(null));
 
         // action wheel button
         Boolean wheel = null;
@@ -89,7 +89,7 @@ public abstract class MinecraftMixin {
                 if (this.player != null && target instanceof Player && !target.isInvisibleTo(this.player)) {
                     PopupMenu.setEntity(target);
                 } else if (!this.options.getCameraType().isFirstPerson()) {
-                    PopupMenu.setEntity(this.cameraEntity);
+                    PopupMenu.setEntity(this.getCameraEntity());
                 }
             }
         } else if (PopupMenu.isEnabled()) {
@@ -113,15 +113,6 @@ public abstract class MinecraftMixin {
             PopupMenu.hotbarKeyPressed(i);
         if (ActionWheel.isEnabled())
             ActionWheel.hotbarKeyPressed(i);
-    }
-
-    @Inject(at = @At("HEAD"), method = "setScreen")
-    private void setScreen(Screen screen, CallbackInfo ci) {
-        if (ActionWheel.isEnabled())
-            ActionWheel.setEnabled(false);
-
-        if (PopupMenu.isEnabled())
-            PopupMenu.run();
     }
 
     @Inject(at = @At("RETURN"), method = "clearClientLevel")
@@ -152,4 +143,9 @@ public abstract class MinecraftMixin {
         FiguraMod.tick();
         FiguraMod.popProfiler();
     }
+    @Inject(method = "pick(F)V", at = @At("RETURN"))
+    private void figura$extendedPick(float delta, CallbackInfo ci) {
+        FiguraMod.extendedPickEntity = org.figuramc.figura.utils.EntityUtils.getViewedEntity(32);
+    }
+
 }

@@ -8,13 +8,11 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(LivingEntity.class)
 public interface LivingEntityAccessor {
-    @Intrinsic
-    @Accessor("jumping")
-    boolean isJumping();
+    @Accessor("swingState")
+    LivingEntity.SwingState figura$getSwingState();
 
-    @Intrinsic
-    @Invoker("getCurrentSwingDuration")
-    int getSwingDuration();
+    @Invoker("getModifiedSwingDuration")
+    int figura$getModifiedSwingDuration(net.minecraft.world.item.component.SwingAnimation animation);
 
     @Intrinsic
     @Invoker("updateWalkAnimation")
