@@ -9,7 +9,7 @@ import net.minecraft.client.renderer.blockentity.SkullBlockRenderer;
 import net.minecraft.client.renderer.blockentity.state.SkullBlockRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
@@ -40,7 +40,7 @@ public abstract class SkullBlockRendererMixin implements BlockEntityRenderer<Sku
     private static SkullBlockRenderState block;
 
     @Inject(at = @At("HEAD"), method = "submitSkull", cancellable = true)
-    private static void renderSkull(Direction direction, float yaw, float animationProgress, PoseStack stack, SubmitNodeCollector submitNodeCollector, int light, SkullModelBase model, RenderType renderLayer, int outlineColor, ModelFeatureRenderer.CrumblingOverlay crumblingOverlay, CallbackInfo ci) {
+    private static void renderSkull(float animationProgress, PoseStack stack, SubmitNodeCollector submitNodeCollector, int light, SkullModelBase model, RenderType renderLayer, int outlineColor, ModelFeatureRenderer.CrumblingOverlay crumblingOverlay, CallbackInfo ci) {
         Avatar localAvatar = SkullBlockRendererHelper.getAvatar();
         SkullBlockRendererHelper.setAvatar(null);
 
@@ -71,25 +71,26 @@ public abstract class SkullBlockRendererMixin implements BlockEntityRenderer<Sku
             FiguraMod.pushProfiler(localAvatar);
             FiguraMod.pushProfiler("skullRender");
 
+            int profilerDepth = 3;
             try {
-                float tickDelta = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(true);// event
-            BlockStateAPI b = localBlock == null ? null : new BlockStateAPI(localBlock.blockState, localBlock.blockPos);
-            ItemStackAPI i = localItem != null ? ItemStackAPI.verify(localItem) : null;
-            EntityAPI<?> e = localEntity != null ? EntityAPI.wrap(localEntity) : null;
-            String m = localMode.name();
+                float tickDelta = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(true);
+                BlockStateAPI b = localBlock == null ? null : new BlockStateAPI(localBlock.blockState, localBlock.blockPos);
+                ItemStackAPI i = localItem != null ? ItemStackAPI.verify(localItem) : null;
+                EntityAPI<?> e = localEntity != null ? EntityAPI.wrap(localEntity) : null;
+                String m = localMode.name();
 
-            FiguraMod.pushProfiler(localBlock != null ? localBlock.blockPos.toString() : String.valueOf(i));
+                FiguraMod.pushProfiler(localBlock != null ? localBlock.blockPos.toString() : String.valueOf(i));
+                profilerDepth++;
+                FiguraMod.pushProfiler("event");
+                profilerDepth++;
+                boolean cancelled = localAvatar.skullRenderEvent(tickDelta, b, i, e, m);
 
-            FiguraMod.pushProfiler("event");
-            boolean cancelled = localAvatar.skullRenderEvent(tickDelta, b, i, e, m);
-
-                // render skull :3
                 FiguraMod.popPushProfiler("render");
-                boolean rendered = localAvatar.skullRender(copy, bufferSource, light, direction, yaw);
+                boolean rendered = localAvatar.skullRender(copy, bufferSource, light);
 
                 figuraHandled.set(cancelled || rendered);
             } finally {
-                FiguraMod.popProfiler(5);
+                FiguraMod.popProfiler(profilerDepth);
             }
             return null;
         });
@@ -106,7 +107,7 @@ public abstract class SkullBlockRendererMixin implements BlockEntityRenderer<Sku
         }
     }
 
-    @Inject(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/blockentity/SkullBlockRenderer;submitSkull(Lnet/minecraft/core/Direction;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/model/object/skull/SkullModelBase;Lnet/minecraft/client/renderer/rendertype/RenderType;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"), method = "submit(Lnet/minecraft/client/renderer/blockentity/state/SkullBlockRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/CameraRenderState;)V")
+    @Inject(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/blockentity/SkullBlockRenderer;submitSkull(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/model/object/skull/SkullModelBase;Lnet/minecraft/client/renderer/rendertype/RenderType;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"), method = "submit(Lnet/minecraft/client/renderer/blockentity/state/SkullBlockRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V")
     public void render(SkullBlockRenderState skullBlockRenderState, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState cameraRenderState, CallbackInfo ci) {
         Avatar av = ((SkullBlockRenderStateExtension) skullBlockRenderState).figura$getAvatar();
         SkullBlockRendererHelper.setAvatar(av);

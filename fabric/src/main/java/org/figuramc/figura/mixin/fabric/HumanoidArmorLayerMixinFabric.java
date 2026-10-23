@@ -190,8 +190,8 @@ public abstract class HumanoidArmorLayerMixinFabric<S extends HumanoidRenderStat
     @Unique
     private void figura$prepareArmorRender(PoseStack stack) {
         stack.scale(16, 16, 16);
-        stack.mulPose(Axis.XP.rotationDegrees(180f));
-        stack.mulPose(Axis.YP.rotationDegrees(180f));
+        stack.rotate(Axis.XP.rotationDegrees(180f));
+        stack.rotate(Axis.YP.rotationDegrees(180f));
     }
 
     @Unique
@@ -275,7 +275,7 @@ public abstract class HumanoidArmorLayerMixinFabric<S extends HumanoidRenderStat
         modelPart.xRot = 0;
         modelPart.yRot = 0;
         modelPart.zRot = 0;
-        EquipmentClientInfo.LayerType layerType = this.usesInnerModel(armorSlot) ? EquipmentClientInfo.LayerType.HUMANOID_LEGGINGS : EquipmentClientInfo.LayerType.HUMANOID;
+        EquipmentClientInfo.LayerType layerType = this.figura$usesInnerModel(armorSlot) ? EquipmentClientInfo.LayerType.HUMANOID_LEGGINGS : EquipmentClientInfo.LayerType.HUMANOID;
         Equippable equippable = itemStack.get(DataComponents.EQUIPPABLE);
 
         if (equippable == null)
@@ -285,36 +285,45 @@ public abstract class HumanoidArmorLayerMixinFabric<S extends HumanoidRenderStat
         if (location.isEmpty())
             return;
 
-        List<EquipmentClientInfo.Layer> list = ((EquipmentLayerRendererAccessor)this.equipmentRenderer).figura$getAssetsManager().get(location.get()).getLayers(layerType);
-
-        int i = DyedItemColor.getOrDefault(itemStack, 0);
-        int order = 0;
-
-        for(EquipmentClientInfo.Layer layer : list) {
-            int k = EquipmentLayerRendererAccessor.getColorForLayer(layer, i);
-
-            if (k != 0) {
-                Identifier normalArmorResource = ((EquipmentLayerRendererAccessor)this.equipmentRenderer).layerTextureLookup().apply(new EquipmentLayerRenderer.LayerTextureKey(layerType, layer));
-                nodeCollector.order(order++).submitModelPart(modelPart, poseStack, RenderTypes.armorCutoutNoCull(normalArmorResource), light, OverlayTexture.NO_OVERLAY, null, k, null);
-                if (hasGlint)
-                    nodeCollector.order(order++).submitModelPart(modelPart, poseStack, RenderTypes.armorEntityGlint(), light, OverlayTexture.NO_OVERLAY, null, k, null);
-                hasGlint = false;
-            }
-        }
-
+        EquipmentClientInfo equipmentInfo = ((EquipmentLayerRendererAccessor) equipmentRenderer).figura$getAssetsManager().get(location.get());
+        List<EquipmentClientInfo.Layer> layers = equipmentInfo.getLayers(layerType);
         ArmorTrim trim = itemStack.get(DataComponents.TRIM);
+        boolean renderGlint = hasGlint && trim == null;
+        int dyeColor = DyedItemColor.getOrDefault(itemStack, 0);
+        int order = 0;
+        for (EquipmentClientInfo.Layer layer : layers) {
+            int color = EquipmentLayerRendererAccessor.getColorForLayer(layer, dyeColor);
+            if (color == 0) {
+                continue;
+            }
+            Identifier texture = ((EquipmentLayerRendererAccessor) equipmentRenderer).layerTextureLookup()
+                    .apply(new EquipmentLayerRenderer.LayerTextureKey(layerType, layer));
+            RenderType type = renderGlint ? RenderTypes.armorCutoutNoCullGlint(texture) : RenderTypes.armorCutoutNoCull(texture);
+            nodeCollector.order(order++).submitModelPart(modelPart, poseStack, type, light, OverlayTexture.NO_OVERLAY, null, color, 0);
+            renderGlint = false;
+        }
         if (trim != null) {
-            TextureAtlasSprite textureAtlasSprite = ((EquipmentLayerRendererAccessor)equipmentRenderer).trimSpriteLookup()
-                    .apply(new EquipmentLayerRenderer.TrimSpriteKey(trim, layerType, location.get()));
-
-            RenderType renderType = Sheets.armorTrimsSheet(trim.pattern().value().decal());
-            nodeCollector.order(order).submitModelPart(modelPart, poseStack, renderType, light, OverlayTexture.NO_OVERLAY, textureAtlasSprite, -1, null);
+            var texture = ((EquipmentLayerRendererAccessor) equipmentRenderer).trimSpriteLookup()
+                    .apply(new EquipmentLayerRenderer.TrimTextureKey(trim, layerType, equipmentInfo));
+            nodeCollector.order(order++).submitModelPart(modelPart, poseStack,
+                    RenderTypes.armorTrim(texture.textureLocation(), trim.pattern().value().decal()), light,
+                    OverlayTexture.NO_OVERLAY, texture, -1, 0);
+            if (hasGlint) {
+                nodeCollector.order(order).submitModelPart(modelPart, poseStack, RenderTypes.trimmedArmorGlint(),
+                        light, OverlayTexture.NO_OVERLAY, null, -1, 0);
+            }
         }
     }
 
     @Unique
     protected void figura$setPartVisibility(A bipedModel, EquipmentSlot slot) {
-        bipedModel.setAllVisible(false);
+        bipedModel.head.visible = false;
+        bipedModel.hat.visible = false;
+        bipedModel.body.visible = false;
+        bipedModel.leftArm.visible = false;
+        bipedModel.rightArm.visible = false;
+        bipedModel.leftLeg.visible = false;
+        bipedModel.rightLeg.visible = false;
         switch (slot) {
             case HEAD:
                 bipedModel.head.visible = true;

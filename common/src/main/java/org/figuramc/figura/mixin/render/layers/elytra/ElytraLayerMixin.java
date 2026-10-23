@@ -7,9 +7,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.object.equipment.ElytraModel;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.EquipmentLayerRenderer;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
@@ -155,8 +154,8 @@ public abstract class ElytraLayerMixin<T extends LivingEntity, S extends Humanoi
                 boolean leftWing = figura$Avatar.pivotPartRender(ParentType.LeftElytraPivot, stack -> {
                         stack.pushPose();
                         stack.scale(16, 16, 16);
-                        stack.mulPose(Axis.XP.rotationDegrees(180f));
-                        stack.mulPose(Axis.YP.rotationDegrees(180f));
+                        stack.rotate(Axis.XP.rotationDegrees(180f));
+                        stack.rotate(Axis.YP.rotationDegrees(180f));
                         stack.translate(0.0f, 0.0f, 0.125f);
                         figura$submitElytraPart(elytraModel, state, ((ElytraModelAccessor)elytraModel).getLeftWing(), stack, nodeCollector, light, state.outlineColor, itemStack, playerTexture);
                         stack.popPose();
@@ -172,8 +171,8 @@ public abstract class ElytraLayerMixin<T extends LivingEntity, S extends Humanoi
                 boolean rightWing = figura$Avatar.pivotPartRender(ParentType.RightElytraPivot, stack -> {
                     stack.pushPose();
                     stack.scale(16, 16, 16);
-                    stack.mulPose(Axis.XP.rotationDegrees(180f));
-                    stack.mulPose(Axis.YP.rotationDegrees(180f));
+                    stack.rotate(Axis.XP.rotationDegrees(180f));
+                    stack.rotate(Axis.YP.rotationDegrees(180f));
                     stack.translate(0.0f, 0.0f, 0.125f);
                     figura$submitElytraPart(elytraModel, state, ((ElytraModelAccessor)elytraModel).getRightWing(), stack, nodeCollector, light, state.outlineColor, itemStack, playerTexture);
                     stack.popPose();
@@ -200,42 +199,46 @@ public abstract class ElytraLayerMixin<T extends LivingEntity, S extends Humanoi
         if (location.isEmpty())
             return;
 
-        List<EquipmentClientInfo.Layer> list = ((EquipmentLayerRendererAccessor)this.equipmentRenderer).figura$getAssetsManager().get(location.get()).getLayers(layerType);
-
-        int i = itemStack.is(ItemTags.DYEABLE) ? DyedItemColor.getOrDefault(itemStack, -6265536) : -1;
+        EquipmentClientInfo equipmentInfo = ((EquipmentLayerRendererAccessor) equipmentRenderer).figura$getAssetsManager().get(location.get());
+        List<EquipmentClientInfo.Layer> layers = equipmentInfo.getLayers(layerType);
+        ArmorTrim trim = itemStack.get(DataComponents.TRIM);
+        boolean renderGlint = hasGlint && trim == null;
+        int dyeColor = DyedItemColor.getOrDefault(itemStack, 0);
         int order = 0;
 
-        for(EquipmentClientInfo.Layer layer : list) {
-            int k = EquipmentLayerRendererAccessor.getColorForLayer(layer, i);
+        for (EquipmentClientInfo.Layer layer : layers) {
+            int color = EquipmentLayerRendererAccessor.getColorForLayer(layer, dyeColor);
+            if (color == 0) {
+                continue;
+            }
+            Identifier texture = layer.usePlayerTexture() && playerLocation != null ? playerLocation
+                    : ((EquipmentLayerRendererAccessor) equipmentRenderer).layerTextureLookup().apply(new EquipmentLayerRenderer.LayerTextureKey(layerType, layer));
+            RenderType type = renderGlint ? RenderTypes.armorCutoutNoCullGlint(texture) : RenderTypes.armorCutoutNoCull(texture);
+            figura$setupElytra(elytraModel, state, modelPart);
+            nodeCollector.order(order++).submitModelPart(modelPart, poseStack, type, light, OverlayTexture.NO_OVERLAY, null, color, outlineColor);
+            renderGlint = false;
+        }
 
-            if (k != 0) {
-                Identifier normalArmorResource = layer.usePlayerTexture() && playerLocation != null ? playerLocation : ((EquipmentLayerRendererAccessor)this.equipmentRenderer).layerTextureLookup().apply(new EquipmentLayerRenderer.LayerTextureKey(layerType, layer));
-                ((FiguraSubmitCallBackExtension)(Object)modelPart).figura$addPreRenderingCallback((multiBufferSource, stack) -> {
-                    elytraModel.setupAnim(state);
-                    return true;
-                });
-                nodeCollector.order(order++).submitModelPart(modelPart, poseStack, RenderTypes.armorCutoutNoCull(normalArmorResource), light, OverlayTexture.NO_OVERLAY, null, -1, null);
-                if (hasGlint) {
-                    ((FiguraSubmitCallBackExtension)(Object)modelPart).figura$addPreRenderingCallback((multiBufferSource, stack) -> {
-                        elytraModel.setupAnim(state);
-                        return true;
-                    });
-                    nodeCollector.order(order++).submitModelPart(modelPart, poseStack, RenderTypes.armorEntityGlint(), light, OverlayTexture.NO_OVERLAY, null, -1 , null);
-                }
-                hasGlint = false;
+        if (trim != null) {
+            var texture = ((EquipmentLayerRendererAccessor) equipmentRenderer).trimSpriteLookup()
+                    .apply(new EquipmentLayerRenderer.TrimTextureKey(trim, layerType, equipmentInfo));
+            figura$setupElytra(elytraModel, state, modelPart);
+            nodeCollector.order(order++).submitModelPart(modelPart, poseStack,
+                    RenderTypes.armorTrim(texture.textureLocation(), trim.pattern().value().decal()),
+                    light, OverlayTexture.NO_OVERLAY, texture, -1, outlineColor);
+            if (hasGlint) {
+                figura$setupElytra(elytraModel, state, modelPart);
+                nodeCollector.order(order).submitModelPart(modelPart, poseStack, RenderTypes.trimmedArmorGlint(),
+                        light, OverlayTexture.NO_OVERLAY, null, -1, 0);
             }
         }
-
-        ArmorTrim trim = itemStack.get(DataComponents.TRIM);
-        if (trim != null) {
-            TextureAtlasSprite textureAtlasSprite = ((EquipmentLayerRendererAccessor)equipmentRenderer).trimSpriteLookup()
-                    .apply(new EquipmentLayerRenderer.TrimSpriteKey(trim, layerType, location.get()));
-            RenderType renderType = Sheets.armorTrimsSheet(trim.pattern().value().decal());
-            ((FiguraSubmitCallBackExtension)(Object)modelPart).figura$addPreRenderingCallback((multiBufferSource, stack) -> {
-                elytraModel.setupAnim(state);
-                return true;
-            });
-            nodeCollector.order(order).submitModelPart(modelPart, poseStack, renderType, light, OverlayTexture.NO_OVERLAY, textureAtlasSprite, -1, null);
-        }
     }
+    @Unique
+    private void figura$setupElytra(ElytraModel model, S state, ModelPart part) {
+        ((FiguraSubmitCallBackExtension) (Object) part).figura$addPreRenderingCallback((collector, pose) -> {
+            model.setupAnim(state);
+            return true;
+        });
+    }
+
 }

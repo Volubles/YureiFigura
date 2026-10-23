@@ -53,8 +53,8 @@ public abstract class ParrotOnShoulderLayerMixin extends RenderLayer<AvatarRende
             stack.translate(0d, 24d, 0d);
             float s = 16f;
             stack.scale(s, s, s);
-            stack.mulPose(Axis.XP.rotationDegrees(180f));
-            stack.mulPose(Axis.YP.rotationDegrees(180f));
+            stack.rotate(Axis.XP.rotationDegrees(180f));
+            stack.rotate(Axis.YP.rotationDegrees(180f));
 
             ParrotRenderState parrotState = new ParrotRenderState();
             parrotState.ageInTicks = playerRenderState.ageInTicks;
@@ -70,7 +70,7 @@ public abstract class ParrotOnShoulderLayerMixin extends RenderLayer<AvatarRende
                     light,
                     OverlayTexture.NO_OVERLAY,
                     playerRenderState.outlineColor,
-                    null
+                    null, 0
             );
         })) {
             ci.cancel();

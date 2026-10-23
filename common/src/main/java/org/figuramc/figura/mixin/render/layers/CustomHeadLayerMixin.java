@@ -8,10 +8,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HeadedModel;
 import net.minecraft.client.model.object.skull.SkullModelBase;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.block.model.ItemTransform;
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.renderer.blockentity.SkullBlockRenderer;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.CustomHeadLayer;
@@ -93,6 +91,9 @@ public abstract class CustomHeadLayerMixin<S extends LivingEntityRenderState, M 
                 float s = 19f;
                 stack.scale(s, s, s);
                 stack.translate(-0.5d, 0d, -0.5d);
+                // the caller handles the skull's block-space transform now.
+                stack.translate(0.5d, 0d, 0.5d);
+                stack.scale(-1f, -1f, 1f);
 
                 // set item context
                 SkullBlockRendererAccessor.setItem(itemStack);
@@ -104,7 +105,7 @@ public abstract class CustomHeadLayerMixin<S extends LivingEntityRenderState, M 
                 Avatar skullAvatar = SkullBlockRendererHelper.resolveAvatar(entityState.wornHeadProfile != null ? entityState.wornHeadProfile : (itemStack != null ? itemStack.get(DataComponents.PROFILE) : null));
                 SkullBlockRendererHelper.setAvatar(skullAvatar);
 
-                SkullBlockRenderer.submitSkull(null, 0f, f, stack, submitNodeCollector, i, skullModelBase,
+                SkullBlockRenderer.submitSkull(f, stack, submitNodeCollector, i, skullModelBase,
                         renderType, entityState.outlineColor, null);
             })) {
                 ci.cancel();
@@ -130,7 +131,7 @@ public abstract class CustomHeadLayerMixin<S extends LivingEntityRenderState, M 
             original.call(instance, matrices, submitNodeCollector, i, j, k);
     }
 
-    @Inject(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/blockentity/SkullBlockRenderer;submitSkull(Lnet/minecraft/core/Direction;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/model/object/skull/SkullModelBase;Lnet/minecraft/client/renderer/rendertype/RenderType;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"), method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;FF)V")
+    @Inject(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/blockentity/SkullBlockRenderer;submitSkull(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/model/object/skull/SkullModelBase;Lnet/minecraft/client/renderer/rendertype/RenderType;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"), method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;FF)V")
     private void renderSkull(PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int i, S livingEntityRenderState, float f, float g, CallbackInfo ci) {
         ItemStack stack = ((FiguraItemStackRenderStateExtension)livingEntityRenderState.headItem).figura$getItemStack();
         if (stack != null)
