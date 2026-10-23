@@ -2,8 +2,14 @@ package org.figuramc.figura.model.rendertasks;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.BlockModelResolver;
+import net.minecraft.client.renderer.block.BlockModelRenderState;
+import net.minecraft.client.renderer.block.model.BlockDisplayContext;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
@@ -24,6 +30,7 @@ import org.figuramc.figura.utils.LuaUtils;
 public class BlockTask extends RenderTask {
 
     private BlockState block;
+    private static final BlockDisplayContext DISPLAY_CONTEXT = BlockDisplayContext.create();
     private int cachedComplexity;
 
     public BlockTask(String name, Avatar owner, FiguraModelPart parent) {
@@ -31,13 +38,15 @@ public class BlockTask extends RenderTask {
     }
 
     @Override
-    public void render(PoseStack poseStack, MultiBufferSource buffer, int light, int overlay) {
+    public void render(PoseStack poseStack, SubmitNodeCollector buffer, int light, int overlay) {
         poseStack.scale(16, 16, 16);
 
         int newLight = this.customization.light != null ? this.customization.light : light;
         int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
 
-        Minecraft.getInstance().getBlockRenderer().renderSingleBlock(block, poseStack, buffer, newLight, newOverlay);
+        BlockModelRenderState state = new BlockModelRenderState();
+        new BlockModelResolver(Minecraft.getInstance().getModelManager()).update(state, block, DISPLAY_CONTEXT);
+        state.submit(poseStack, buffer, newLight, newOverlay, 0);
     }
 
     @Override
@@ -71,12 +80,14 @@ public class BlockTask extends RenderTask {
     public BlockTask setBlock(Object block) {
         this.block = LuaUtils.parseBlockState("block", block);
         Minecraft client = Minecraft.getInstance();
-        RandomSource random = client.level != null ? client.level.random : RandomSource.create();
+        RandomSource random = client.level != null ? client.level.getRandom() : RandomSource.create();
 
-        BlockStateModel blockModel = client.getBlockRenderer().getBlockModel(this.block);
-        cachedComplexity = blockModel.collectParts(random).stream().mapToInt(p -> p.getQuads(null).size()).sum();
+        BlockStateModel blockModel = client.getModelManager().getBlockStateModelSet().get(this.block);
+        List<BlockStateModelPart> parts = new ArrayList<>();
+        blockModel.collectParts(random, parts);
+        cachedComplexity = parts.stream().mapToInt(p -> p.getQuads(null).size()).sum();
         for (Direction dir : Direction.values())
-            cachedComplexity += blockModel.collectParts(random).stream().mapToInt(p -> p.getQuads(dir).size()).sum();
+            cachedComplexity += parts.stream().mapToInt(p -> p.getQuads(dir).size()).sum();
 
         return this;
     }

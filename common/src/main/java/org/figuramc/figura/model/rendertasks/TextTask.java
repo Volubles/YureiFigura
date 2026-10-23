@@ -4,7 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.network.chat.Component;
 import org.figuramc.figura.FiguraMod;
@@ -52,7 +52,7 @@ public class TextTask extends RenderTask {
     }
 
     @Override
-    public void render(PoseStack poseStack, MultiBufferSource buffer, int light, int overlay) {
+    public void render(PoseStack poseStack, SubmitNodeCollector buffer, int light, int overlay) {
         if (opacity == 0) return; // lol
 
         // prepare matrices
@@ -73,11 +73,13 @@ public class TextTask extends RenderTask {
             int offset = alignment.apply(cacheWidth);
             float x1 = -1 - offset;
             float x2 = cacheWidth - offset;
-            VertexConsumer vertexConsumer = buffer.getBuffer(seeThrough ? RenderTypes.textBackgroundSeeThrough() : RenderTypes.textBackground());
-            vertexConsumer.addVertex(matrix, x1, -1f, vertexOffset).setColor(bg).setLight(l);
-            vertexConsumer.addVertex(matrix, x1, cacheHeight, vertexOffset).setColor(bg).setLight(l);
-            vertexConsumer.addVertex(matrix, x2, cacheHeight, vertexOffset).setColor(bg).setLight(l);
-            vertexConsumer.addVertex(matrix, x2, -1f, vertexOffset).setColor(bg).setLight(l);
+            poseStack.pushPose();
+            try {
+                poseStack.translate(0, 0, vertexOffset);
+                buffer.submitTextBackground(poseStack, x1, -1f, x2, cacheHeight, bg, displayMode, l);
+            } finally {
+                poseStack.popPose();
+            }
         }
 
         // text
@@ -86,11 +88,13 @@ public class TextTask extends RenderTask {
             int x = -alignment.apply(font, text);
 
             if (outline) {
-                font.drawInBatch8xOutline(text.getVisualOrderText(), x, j, -1, out, matrix, buffer, l);
-                if (seeThrough)
-                    font.drawInBatch(text, x, j, op, shadow, matrix, buffer, displayMode, 0, l);
+                buffer.submitText(poseStack, x, j, text.getVisualOrderText(), false, Font.DisplayMode.NORMAL,
+                        l, -1, 0, net.minecraft.util.ARGB.opaque(out));
+                if (seeThrough) {
+                    buffer.submitText(poseStack, x, j, text.getVisualOrderText(), shadow, displayMode, l, op, 0, 0);
+                }
             } else {
-                font.drawInBatch(text, x, j, op, shadow, matrix, buffer, displayMode, 0, l);
+                buffer.submitText(poseStack, x, j, text.getVisualOrderText(), shadow, displayMode, l, op, 0, 0);
             }
         }
     }

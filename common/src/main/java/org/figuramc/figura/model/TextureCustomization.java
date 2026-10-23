@@ -39,9 +39,14 @@ public class TextureCustomization {
     }
 
     public FiguraTexture getTexture(Avatar avatar, FiguraTextureSet textureSet) {
-        if (avatar.render == null) return null;
+        if (avatar.render == null) {
+            return null;
+        }
 
         Identifier resourceLocation = textureSet.getOverrideTexture(avatar.owner, this);
+        if (resourceLocation == null) {
+            return null;
+        }
         String name = resourceLocation.toString();
         if (avatar.renderer.customTextures.containsKey(name)) {
             return avatar.renderer.customTextures.get(name);

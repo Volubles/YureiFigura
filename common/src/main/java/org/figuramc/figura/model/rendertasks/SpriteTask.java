@@ -2,7 +2,7 @@ package org.figuramc.figura.model.rendertasks;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.resources.Identifier;
 import org.figuramc.figura.avatar.Avatar;
@@ -16,6 +16,9 @@ import org.figuramc.figura.math.vector.FiguraVec3;
 import org.figuramc.figura.math.vector.FiguraVec4;
 import org.figuramc.figura.model.FiguraModelPart;
 import org.figuramc.figura.model.rendering.Vertex;
+import org.figuramc.figura.model.rendering.CapturedVertexBatch;
+import org.figuramc.figura.model.rendering.nodeRenderer.FiguraSubmission;
+import org.figuramc.figura.ducks.NodeCollectorExtension;
 import org.figuramc.figura.model.rendering.texture.FiguraRenderTypes;
 import org.figuramc.figura.model.rendering.texture.FiguraTexture;
 import org.figuramc.figura.utils.ColorUtils;
@@ -49,7 +52,7 @@ public class SpriteTask extends RenderTask {
     }
 
     @Override
-    public void render(PoseStack poseStack, MultiBufferSource buffer, int light, int overlay) {
+    public void render(PoseStack poseStack, SubmitNodeCollector buffer, int light, int overlay) {
         if (a == 0) return;
         poseStack.scale(-1, -1, 1);
 
@@ -61,7 +64,8 @@ public class SpriteTask extends RenderTask {
         int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
 
         // setup texture render
-        VertexConsumer consumer = buffer.getBuffer(renderType.get(texture));
+        var material = renderType.get(texture);
+        CapturedVertexBatch batch = CapturedVertexBatch.capture(vertices.size(), consumer -> {
 
         // create vertices
         for (Vertex v : vertices) {
@@ -72,6 +76,17 @@ public class SpriteTask extends RenderTask {
                     .setLight(newLight)
                     .setNormal(poseStack.last(), v.nx, v.ny, v.nz)
                     .setLineWidth(1.0F);
+        }
+        });
+        var selectedTexture = net.minecraft.client.Minecraft.getInstance().getTextureManager().getTexture(texture);
+        FiguraSubmission submission = new FiguraSubmission(material, batch,
+                selectedTexture instanceof FiguraTexture figuraTexture ? figuraTexture.retainForRender() : null);
+        try {
+            ((NodeCollectorExtension) buffer).figura$submitGeometry(submission);
+        } catch (RuntimeException | Error failure) {
+            try (submission) {
+                throw failure;
+            }
         }
     }
 

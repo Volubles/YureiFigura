@@ -1,6 +1,6 @@
 package org.figuramc.figura.model;
 
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import org.figuramc.figura.avatar.Avatar;
 import org.figuramc.figura.lua.LuaNotNil;
@@ -782,9 +782,10 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             tbl.set("normal", arr[3] == null ? LuaValue.NIL : LuaValue.userdataOf(arr[3]));
             return tbl;
         }
-        return new LuaTable() {{
-            set("main", LuaValue.userdataOf(customization.primaryTexture.getTexture(owner, textures.get(value == null ? 0 : value))));
-        }};
+        FiguraTexture texture = customization.primaryTexture.getTexture(owner, textures.get(value));
+        LuaTable tbl = new LuaTable();
+        tbl.set("main", texture == null ? LuaValue.NIL : LuaValue.userdataOf(texture));
+        return tbl;
     }
 
     @LuaWhitelist
@@ -799,9 +800,10 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             tbl.set("normal", arr[3] == null ? LuaValue.NIL : LuaValue.userdataOf(arr[3]));
             return tbl;
         }
-        return new LuaTable() {{
-            set("main", LuaValue.userdataOf(customization.secondaryTexture.getTexture(owner, textures.get(value == null ? 0 : value))));
-        }};
+        FiguraTexture texture = customization.secondaryTexture.getTexture(owner, textures.get(value == null ? 0 : value));
+        LuaTable tbl = new LuaTable();
+        tbl.set("main", texture == null ? LuaValue.NIL : LuaValue.userdataOf(texture));
+        return tbl;
     }
 
     @LuaWhitelist
@@ -1173,7 +1175,7 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
         }
 
         FiguraVec2 lightVec = LuaUtils.parseVec2("setLight", light, skyLight);
-        this.customization.light = LightTexture.pack((int) lightVec.x, (int) lightVec.y);
+        this.customization.light = LightCoordsUtil.pack((int) lightVec.x, (int) lightVec.y);
         return this;
     }
 
@@ -1186,7 +1188,7 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
     @LuaMethodDoc("model_part.get_light")
     public FiguraVec2 getLight() {
         Integer light = this.customization.light;
-        return light == null ? null : FiguraVec2.of(LightTexture.block(light), LightTexture.sky(light));
+        return light == null ? null : FiguraVec2.of(LightCoordsUtil.block(light), LightCoordsUtil.sky(light));
     }
 
     @LuaWhitelist
