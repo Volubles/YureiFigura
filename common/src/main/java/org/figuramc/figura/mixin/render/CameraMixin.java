@@ -1,6 +1,12 @@
 package org.figuramc.figura.mixin.render;
 
 import net.minecraft.client.Camera;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import org.joml.Matrix4f;
+import org.joml.Quaternionfc;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -19,24 +25,33 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Camera.class)
-public abstract class CameraMixin {
+public abstract class CameraMixin implements org.figuramc.figura.ducks.CameraProjectionAccess {
 
     @Shadow private float xRot;
     @Shadow private float yRot;
 
     @Unique private Avatar avatar;
+    @Shadow private Entity entity;
+    @Shadow private float fovModifier;
+    @Shadow protected abstract float calculateFov(float partialTicks);
+    @Shadow protected abstract float calculateHudFov(float partialTicks);
+
+    @Override
+    public double figura$getFov(float delta, boolean changingFov) {
+        return changingFov ? calculateFov(delta) : calculateHudFov(delta);
+    }
 
     @Shadow protected abstract void setRotation(float yaw, float pitch);
     @Shadow protected abstract void move(float x, float y, float z);
 
-    @Inject(method = "setup", at = @At(value = "HEAD"))
-    private void setupAvatarVar(Level level, Entity focusedEntity, boolean bl, boolean bl2, float f, CallbackInfo ci) {
-        avatar = AvatarManager.getAvatar(focusedEntity);
+    @Inject(method = "alignWithEntity", at = @At(value = "HEAD"))
+    private void setupAvatarVar(float delta, CallbackInfo ci) {
+        avatar = AvatarManager.getAvatar(entity);
     }
 
     // Neo adds roll in addition to pitch and yaw
-    @Inject(method = "setup", at = {@At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V", shift = At.Shift.AFTER), @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V", shift = At.Shift.AFTER)}, require = 1)
-    private void setupRot(Level level, Entity entity, boolean bl, boolean bl2, float f, CallbackInfo ci) {
+    @Inject(method = "alignWithEntity", at = {@At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V", shift = At.Shift.AFTER)}, require = 1)
+    private void setupRot(float delta, CallbackInfo ci) {
         if (!RenderUtils.vanillaModelAndScript(avatar)) {
             avatar = null;
             return;
@@ -60,7 +75,7 @@ public abstract class CameraMixin {
         setRotation(y, x);
     }
 
-    @ModifyArg(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 0)
+    @ModifyArg(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 0)
     private double setupPivotX(double originalX) {
         if (RenderUtils.vanillaModelAndScript(avatar)) {
             double x = originalX;
@@ -79,7 +94,7 @@ public abstract class CameraMixin {
         return originalX;
     }
 
-    @ModifyArg(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 1)
+    @ModifyArg(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 1)
     private double setupPivotY(double originalY) {
         if (RenderUtils.vanillaModelAndScript(avatar)) {
             double y = originalY;
@@ -98,7 +113,7 @@ public abstract class CameraMixin {
         return originalY;
     }
 
-    @ModifyArg(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 2)
+    @ModifyArg(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 2)
     private double setupPivotZ(double originalZ) {
         if (RenderUtils.vanillaModelAndScript(avatar)) {
             double z = originalZ;
@@ -118,8 +133,8 @@ public abstract class CameraMixin {
     }
 
 
-    @Inject(method = "setup", at = @At(value = "RETURN"))
-    private void setupPos(Level level, Entity entity, boolean bl, boolean bl2, float f, CallbackInfo ci) {
+    @Inject(method = "alignWithEntity", at = @At(value = "RETURN"))
+    private void setupPos(float delta, CallbackInfo ci) {
         if (RenderUtils.vanillaModelAndScript(avatar)) {
             FiguraVec3 pos = avatar.luaRuntime.renderer.cameraPos;
             if (pos != null && pos.notNaN())
@@ -127,6 +142,39 @@ public abstract class CameraMixin {
 
             avatar = null;
         }
+    }
+
+    @WrapOperation(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(Lnet/minecraft/world/phys/Vec3;)V"))
+    private void figura$cartPivot(Camera camera, Vec3 pos, Operation<Void> original) {
+        original.call(camera, new Vec3(setupPivotX(pos.x), setupPivotY(pos.y), setupPivotZ(pos.z)));
+    }
+
+    @Inject(method = "tickFov", at = @At("RETURN"))
+    private void figura$fov(CallbackInfo ci) {
+        Avatar avatar = AvatarManager.getAvatar(entity);
+        if (RenderUtils.vanillaModelAndScript(avatar) && avatar.luaRuntime.renderer.fov != null) {
+            fovModifier = avatar.luaRuntime.renderer.fov;
+        }
+    }
+
+    @WrapOperation(method = "getViewRotationMatrix", at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;rotation(Lorg/joml/Quaternionfc;)Lorg/joml/Matrix4f;"))
+    private Matrix4f figura$view(Matrix4f matrix, Quaternionfc rotation, Operation<Matrix4f> original) {
+        Avatar avatar = AvatarManager.getAvatar(entity);
+        if (!RenderUtils.vanillaModelAndScript(avatar)) {
+            return original.call(matrix, rotation);
+        }
+        float roll = 0;
+        if (avatar.luaRuntime.renderer.cameraRot != null) {
+            roll += (float) avatar.luaRuntime.renderer.cameraRot.z;
+        }
+        if (avatar.luaRuntime.renderer.cameraOffsetRot != null) {
+            roll += (float) avatar.luaRuntime.renderer.cameraOffsetRot.z;
+        }
+        matrix.identity().rotateZ((float) Math.toRadians(roll));
+        if (avatar.luaRuntime.renderer.cameraMat != null) {
+            matrix.set(avatar.luaRuntime.renderer.cameraMat.toMatrix4f());
+        }
+        return matrix.rotate(rotation);
     }
 
     @Inject(method = "xRot", at = @At("HEAD"), cancellable = true)

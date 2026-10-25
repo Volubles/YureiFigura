@@ -1,7 +1,7 @@
 package org.figuramc.figura.mixin.fabric;
 
 import com.llamalad7.mixinextras.sugar.Local;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.resource.ResourceHandle;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -14,7 +14,7 @@ import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
-import net.minecraft.client.renderer.state.LevelRenderState;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.util.Mth;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
@@ -40,17 +40,15 @@ public class LevelRendererMixinFabric {
 
     @Shadow @Final private RenderBuffers renderBuffers;
 
-    @Shadow @Final private Minecraft minecraft;
 
     @Shadow
     @Final
     private SubmitNodeStorage submitNodeStorage;
 
-    @Inject(method = {"method_62214"}, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;checkPoseStack(Lcom/mojang/blaze3d/vertex/PoseStack;)V", ordinal = 0))
-    private void renderLevelFirstPerson(GpuBufferSlice gpuBufferSlice, LevelRenderState levelRenderState, ProfilerFiller profiler, Matrix4f matrix4f, ResourceHandle resourceHandle, ResourceHandle resourceHandle2, boolean bl, ResourceHandle resourceHandle3, ResourceHandle resourceHandle4, CallbackInfo ci, @Local PoseStack stack
-    ) {
-        Camera camera = this.minecraft.gameRenderer.getMainCamera();
-        DeltaTracker deltaTracker = this.minecraft.getDeltaTracker();
+    @Inject(method = "submitEntities", at = @At("TAIL"))
+    private void renderLevelFirstPerson(PoseStack stack, LevelRenderState levelRenderState, SubmitNodeCollector collector, CallbackInfo ci) {
+        Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+        DeltaTracker deltaTracker = Minecraft.getInstance().getDeltaTracker();
         if (camera.isDetached())
             return;
 
@@ -66,37 +64,38 @@ public class LevelRendererMixinFabric {
         LivingEntityRenderState state = entityRenderer.createRenderState(livingEntity, deltaTracker.getGameTimeDeltaPartialTick(Minecraft.getInstance().level.tickRateManager().isEntityFrozen(e)));
 
         // first person world parts
-        MultiBufferSource.BufferSource bufferSource = this.renderBuffers.bufferSource();
+        SubmitNodeCollector bufferSource = collector;
         avatar.firstPersonWorldRender(e, bufferSource, stack, camera, tickDelta);
 
         // first person matrices
         if (Configs.FIRST_PERSON_MATRICES.value) {
-            Avatar.firstPerson = true;
-
+            boolean previousFirstPerson = Avatar.firstPerson;
             int lastIndex = ((PoseStackAccessor)stack).getLastIndex();
             stack.pushPose();
-            Vec3 offset = entityRenderer.getRenderOffset(state);
-            Vec3 cam = camera.position();
-            stack.translate(
-                    Mth.lerp(tickDelta, livingEntity.xOld, livingEntity.getX()) - cam.x() + offset.x(),
-                    Mth.lerp(tickDelta, livingEntity.yOld, livingEntity.getY()) - cam.y() + offset.y(),
-                    Mth.lerp(tickDelta, livingEntity.zOld, livingEntity.getZ()) - cam.z() + offset.z()
-            );
+            try {
+                Avatar.firstPerson = true;
+                Vec3 offset = entityRenderer.getRenderOffset(state);
+                Vec3 cam = camera.position();
+                stack.translate(
+                        Mth.lerp(tickDelta, livingEntity.xOld, livingEntity.getX()) - cam.x() + offset.x(),
+                        Mth.lerp(tickDelta, livingEntity.yOld, livingEntity.getY()) - cam.y() + offset.y(),
+                        Mth.lerp(tickDelta, livingEntity.zOld, livingEntity.getZ()) - cam.z() + offset.z()
+                );
 
-            entityRenderer.submit(state, stack, this.submitNodeStorage, levelRenderState.cameraRenderState);
-            do {
-                stack.popPose();
-            } while(((PoseStackAccessor)stack).getLastIndex() > lastIndex);
-
-            Avatar.firstPerson = false;
+                entityRenderer.submit(state, stack, collector, levelRenderState.cameraRenderState);
+            } finally {
+                while (((PoseStackAccessor)stack).getLastIndex() > lastIndex) {
+                    stack.popPose();
+                }
+                Avatar.firstPerson = previousFirstPerson;
+            }
         }
 
-        bufferSource.endLastBatch(); // do a vanilla hand and render the hand/parts immediately
     }
 
-    @Inject(method =  {"method_62214"}, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderBuffers;bufferSource()Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;"))
-    public void applyFiguraNormals(GpuBufferSlice gpuBufferSlice, LevelRenderState levelRenderState, ProfilerFiller profiler, Matrix4f matrix4f, ResourceHandle resourceHandle, ResourceHandle resourceHandle2, boolean bl, ResourceHandle resourceHandle3, ResourceHandle resourceHandle4, CallbackInfo ci, @Local PoseStack poseStack) {
-        Avatar avatar = AvatarManager.getAvatar(this.minecraft.getCameraEntity() == null ? this.minecraft.player : this.minecraft.getCameraEntity());
+    @Inject(method = "submitEntities", at = @At("HEAD"))
+    private void applyFiguraNormals(PoseStack poseStack, LevelRenderState state, SubmitNodeCollector collector, CallbackInfo ci) {
+        Avatar avatar = AvatarManager.getAvatar(Minecraft.getInstance().getCameraEntity() == null ? Minecraft.getInstance().player : Minecraft.getInstance().getCameraEntity());
         if (!RenderUtils.vanillaModelAndScript(avatar)) return;
 
         FiguraMat3 normal = avatar.luaRuntime.renderer.cameraNormal;
