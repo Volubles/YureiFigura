@@ -1,8 +1,8 @@
 package org.figuramc.figura.mixin.gui;
 
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
-import net.minecraft.client.gui.render.state.pip.GuiEntityRenderState;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.state.gui.pip.GuiEntityRenderState;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import org.figuramc.figura.ducks.GuiEntityRenderStateExtension;
 import org.figuramc.figura.model.rendering.EntityRenderMode;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,6 +14,9 @@ public abstract class GuiEntityRenderStateMixin implements GuiEntityRenderStateE
     @Unique
     double figura$xPos = 0, figura$yPos = 0;
 
+    @Unique private float figura$fireRotation;
+    @Unique private float figura$dollScale = 1f;
+
     @Unique
     EntityRenderMode figura$renderMode = EntityRenderMode.MINECRAFT_GUI;
 
@@ -24,7 +27,7 @@ public abstract class GuiEntityRenderStateMixin implements GuiEntityRenderStateE
 
     @Override
     public void setXPos(double xPos) {
-        this.figura$yPos = xPos;
+        this.figura$xPos = xPos;
     }
 
     @Override
@@ -35,6 +38,26 @@ public abstract class GuiEntityRenderStateMixin implements GuiEntityRenderStateE
     @Override
     public void setYPos(double yPos) {
         this.figura$yPos = yPos;
+    }
+
+    @Override
+    public float getFireRotation() {
+        return figura$fireRotation;
+    }
+
+    @Override
+    public void setFireRotation(float rotation) {
+        figura$fireRotation = rotation;
+    }
+
+    @Override
+    public float getDollScale() {
+        return figura$dollScale;
+    }
+
+    @Override
+    public void setDollScale(float scale) {
+        figura$dollScale = scale;
     }
 
     @Override

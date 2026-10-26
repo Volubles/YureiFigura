@@ -13,6 +13,12 @@ public interface GuiEntityRenderStateExtension {
     double getYPos();
     void setYPos(double yPos);
 
+    float getFireRotation();
+    void setFireRotation(float rotation);
+
+    float getDollScale();
+    void setDollScale(float scale);
+
     EntityRenderMode getRenderMode();
     void setRenderMode(EntityRenderMode renderMode);
 }
