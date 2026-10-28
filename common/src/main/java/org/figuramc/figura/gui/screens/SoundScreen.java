@@ -46,12 +46,12 @@ public class SoundScreen extends AbstractPanelScreen {
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(sourcePanel);
+        this.minecraft.gui.setScreen(sourcePanel);
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent mouseButtonEvent, boolean bl) {
-        piano.pressed = mouseButtonEvent.button() == 0;
+        piano.pressed = org.figuramc.figura.utils.InputUtils.mouseButton(mouseButtonEvent.button()) == 0;
         return super.mouseClicked(mouseButtonEvent, bl);
     }
 

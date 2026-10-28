@@ -59,7 +59,7 @@ public class FiguraConfirmScreen extends AbstractPanelScreen {
 
     @Override
     public boolean keyPressed(KeyEvent keyEvent) {
-        int keyCode = keyEvent.key();
+        int keyCode = org.figuramc.figura.utils.InputUtils.keyId(keyEvent.key());
         if (keyCode == 256) {
             run(false);
             return true;
