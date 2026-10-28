@@ -2,7 +2,7 @@ package org.figuramc.figura.gui.widgets;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -69,15 +69,15 @@ public class EntityPreview extends AbstractContainerElement {
                 FiguraText.of("gui.expand"),
                 bx -> {
                     if (button.isToggled()) {
-                        Minecraft.getInstance().setScreen(new AvatarScreen(scale, pitch, yaw, this.entity, parentScreen));
+                        Minecraft.getInstance().gui.setScreen(new AvatarScreen(scale, pitch, yaw, this.entity, parentScreen));
                     } else {
-                        Minecraft.getInstance().setScreen(parentScreen);
+                        Minecraft.getInstance().gui.setScreen(parentScreen);
                     }
                 }));
     }
 
     @Override
-    public void render(GuiGraphics gui, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor gui, int mouseX, int mouseY, float delta) {
         if (!this.isVisible())
             return;
 
@@ -96,30 +96,34 @@ public class EntityPreview extends AbstractContainerElement {
         // scissors
         gui.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
 
-        // render entity
-        Matrix3x2fStack pose = gui.pose();
-        if (entity != null) {
-            pose.pushMatrix();
-            scaledValue = Mth.lerp((float) (1f - Math.pow(0.5f, delta)), scaledValue, scaledPrecise);
-            UIHelper.drawEntity(x + modelX, y + modelY, scale + scaledValue, angleX, angleY, entity, gui, new Vector3f(), EntityRenderMode.FIGURA_GUI, x, y, x+width, y+height);
-            pose.popMatrix();
-        } else {
-            // draw
-            int s = Math.min(width, height) * 2 / 3;
-            UIHelper.enableBlend();
-            gui.blit(RenderPipelines.GUI_TEXTURED, UNKNOWN, x + (width - s) / 2, y + (height - s) / 2, 0f, 64 * ((int) (FiguraMod.ticks / 3f) % 8), s, s,64, 64, 64, 512);
+        try {
+            // render entity
+            Matrix3x2fStack pose = gui.pose();
+            if (entity != null) {
+                pose.pushMatrix();
+                try {
+                    scaledValue = Mth.lerp((float) (1f - Math.pow(0.5f, delta)), scaledValue, scaledPrecise);
+                    UIHelper.drawEntity(x + modelX, y + modelY, scale + scaledValue, angleX, angleY, entity, gui, new Vector3f(), EntityRenderMode.FIGURA_GUI, x, y, x+width, y+height);
+                } finally {
+                    pose.popMatrix();
+                }
+            } else {
+                // draw
+                int s = Math.min(width, height) * 2 / 3;
+                gui.blit(RenderPipelines.GUI_TEXTURED, UNKNOWN, x + (width - s) / 2, y + (height - s) / 2, 0f, 64 * ((int) (FiguraMod.ticks / 3f) % 8), s, s,64, 64, 64, 512);
+            }
+        } finally {
+            gui.disableScissor();
         }
 
-        gui.disableScissor();
-
-        super.render(gui, mouseX, mouseY, delta);
+        super.extractRenderState(gui, mouseX, mouseY, delta);
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent mouseButtonEvent, boolean bl) {
         double mouseX = mouseButtonEvent.x();
         double mouseY = mouseButtonEvent.y();
-        int button = mouseButtonEvent.button();
+        int button = org.figuramc.figura.utils.InputUtils.mouseButton(mouseButtonEvent.button());
 
         if (!this.isVisible() || !this.isMouseOver(mouseX, mouseY))
             return false;
@@ -181,7 +185,7 @@ public class EntityPreview extends AbstractContainerElement {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent mouseButtonEvent) {
-        int button = mouseButtonEvent.button();
+        int button = org.figuramc.figura.utils.InputUtils.mouseButton(mouseButtonEvent.button());
         // left click - stop rotating
         if (button == 0) {
             isRotating = false;

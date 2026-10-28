@@ -3,7 +3,7 @@ package org.figuramc.figura.gui.widgets;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import org.figuramc.figura.FiguraMod;
@@ -18,15 +18,15 @@ public class KeybindWidgetHelper {
     private Component tooltip;
     private boolean vanillaConflict, avatarConflict;
 
-    public void renderConflictBars(GuiGraphics gui, int x, int y, int width, int height) {
+    public void renderConflictBars(GuiGraphicsExtractor gui, int x, int y, int width, int height) {
         // conflict bars
         if (vanillaConflict || avatarConflict) {
             if (avatarConflict) {
-                gui.fill(x, y, x + width, y + height, ChatFormatting.YELLOW.getColor() | 0xFF000000);
+                gui.fill(x, y, x + width, y + height, net.minecraft.network.chat.TextColor.YELLOW.getValue() | 0xFF000000);
                 x -= width + 4;
             }
             if (vanillaConflict) {
-                gui.fill(x, y, x + width, y + height, ChatFormatting.RED.getColor() | 0xFF000000);
+                gui.fill(x, y, x + width, y + height, net.minecraft.network.chat.TextColor.RED.getValue() | 0xFF000000);
             }
         }
     }

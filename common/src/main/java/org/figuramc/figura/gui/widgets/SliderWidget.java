@@ -1,6 +1,6 @@
 package org.figuramc.figura.gui.widgets;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -46,9 +46,10 @@ public class SliderWidget extends ScrollBarWidget {
     public boolean keyPressed(KeyEvent keyEvent) {
         if (!this.isActive()) return false;
 
-        int keyCode = keyEvent.key();
+        int keyCode = org.figuramc.figura.utils.InputUtils.keyId(keyEvent.key());
+        int modifiers = org.figuramc.figura.utils.InputUtils.modifiers(keyEvent.modifiers());
         if (keyCode > 261 && keyCode < 266) {
-            scroll(stepSize * (keyCode % 2 == 0 ? 1 : -1) * Math.max(keyEvent.modifiers() * 10, 1) * (getWidth() - headWidth + 2d));
+            scroll(stepSize * (keyCode % 2 == 0 ? 1 : -1) * Math.max(modifiers * 10, 1) * (getWidth() - headWidth + 2d));
             return true;
         }
 
@@ -78,12 +79,12 @@ public class SliderWidget extends ScrollBarWidget {
     }
 
     @Override
-    public void renderWidget(GuiGraphics gui, int mouseX, int mouseY, float delta) {
+    public void extractWidgetRenderState(GuiGraphicsExtractor gui, int mouseX, int mouseY, float delta) {
         // set hovered
         this.isHovered = this.isMouseOver(mouseX, mouseY);
 
         // render button
-        UIHelper.enableBlend();
+
         int x = getX();
         int y = getY();
         int width = getWidth();
